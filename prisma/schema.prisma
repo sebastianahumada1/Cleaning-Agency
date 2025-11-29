@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String?
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  workdays  Workday[]
+  schedules Schedule[]
+  payrolls  Payroll[]
+}
+
+model Location {
+  id           String    @id @default(uuid())
+  name         String
+  pricePerDay  Decimal   // Precio por defecto (fallback)
+  pricePerWeek Decimal?
+  hoursPerDay  Decimal?
+  // Precios por día de la semana (1=Lunes, 7=Domingo)
+  priceMonday    Decimal?
+  priceTuesday   Decimal?
+  priceWednesday Decimal?
+  priceThursday  Decimal?
+  priceFriday    Decimal?
+  priceSaturday  Decimal?
+  priceSunday    Decimal?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  workdays     Workday[]
+  schedules    Schedule[]
+  payrolls     Payroll[]
+}
+
+model Schedule {
+  id         String   @id @default(uuid())
+  employeeId String
+  locationId String
+  weekday    Int      // 1=Mon ... 7=Sun
+  startDate  DateTime
+  endDate    DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([locationId])
+  @@index([weekday])
+}
+
+model Workday {
+  id           String   @id @default(uuid())
+  date         DateTime
+  employeeId   String
+  locationId   String
+  attended     Boolean  @default(true)
+  hoursWorked  Decimal?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  location     Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([date, employeeId, locationId])
+  @@index([date])
+  @@index([employeeId])
+  @@index([locationId])
+}
+
+model PayPeriod {
+  id        String    @id @default(uuid())
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  payrolls  Payroll[]
+
+  @@index([startDate, endDate])
+}
+
+model Payroll {
+  id          String    @id @default(uuid())
+  employeeId  String
+  locationId  String
+  payPeriodId String
+  daysWorked  Int
+  totalEarned Decimal
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  location    Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  payperiod   PayPeriod @relation(fields: [payPeriodId], references: [id], onDelete: Cascade)
+
+  @@index([payPeriodId])
+  @@index([employeeId])
+  @@index([locationId])
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  startDate   DateTime
+  endDate     DateTime
+  reportDate  DateTime?
+  reportedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([startDate, endDate])
+}
+

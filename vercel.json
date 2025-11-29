@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/generate-workdays",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}
+
