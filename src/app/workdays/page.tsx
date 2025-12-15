@@ -337,7 +337,9 @@ export default function WorkdaysPage() {
 
   function getPriceForDay(location: Workday['location'], date: string): number {
     const dateObj = new Date(date)
-    const weekday = dateObj.getDay() === 0 ? 7 : dateObj.getDay() // 1=Mon, 7=Sun
+    // Normalize date to local timezone (midnight) to avoid timezone issues
+    const normalizedDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate())
+    const weekday = normalizedDate.getDay() === 0 ? 7 : normalizedDate.getDay() // 1=Mon, 7=Sun
     
     // Check if there's a specific price for this weekday
     let price: number | null = null

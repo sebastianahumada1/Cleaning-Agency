@@ -46,9 +46,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Helper function to normalize date to local timezone (midnight) to avoid timezone issues
+    function normalizeDate(date: Date): Date {
+      // Create a new date using the year, month, and day in local timezone
+      const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      return normalized
+    }
+
     // Helper function to get price for a specific day
     function getPriceForDay(location: any, date: Date): number {
-      const weekday = date.getDay() === 0 ? 7 : date.getDay() // 1=Mon, 7=Sun
+      // Normalize date to avoid timezone issues
+      const normalizedDate = normalizeDate(date)
+      const weekday = normalizedDate.getDay() === 0 ? 7 : normalizedDate.getDay() // 1=Mon, 7=Sun
       
       // Check if there's a specific price for this weekday
       let price: number | null = null
