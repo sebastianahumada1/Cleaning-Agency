@@ -129,9 +129,14 @@ export default function ReportPage() {
     
     for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
       const weekday = d.getUTCDay() === 0 ? 7 : d.getUTCDay() // 1=Monday, 7=Sunday
+      // Create date using UTC components to avoid timezone issues
+      const year = d.getUTCFullYear()
+      const month = d.getUTCMonth()
+      const day = d.getUTCDate()
+      const dateUTC = new Date(Date.UTC(year, month, day, 0, 0, 0, 0))
       days.push({
-        day: d.getUTCDate(),
-        date: new Date(d),
+        day: day,
+        date: dateUTC,
         weekday,
       })
     }
@@ -558,6 +563,8 @@ export default function ReportPage() {
               if (!dayInfo.workdayId && (dayInfo.attended === true || dayInfo.attended === undefined)) {
                 // Use formatDateUTC to ensure consistent date extraction using UTC
                 const dateStr = formatDateUTC(dayInfo.date)
+                // Debug logging
+                console.log('Report: Saving workday - Original date:', dayInfo.date.toISOString(), 'Formatted:', dateStr, 'Weekday:', dayInfo.weekday)
                 try {
                   const res = await fetch('/api/workdays', {
                     method: 'POST',

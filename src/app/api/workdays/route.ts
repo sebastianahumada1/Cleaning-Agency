@@ -89,9 +89,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const normalizedDate = normalizeDateToUTC(date)
+    console.log(`Workdays API: Creating workday - Input date: ${date}, Normalized: ${normalizedDate.toISOString()}, UTC Date: ${normalizedDate.getUTCFullYear()}-${String(normalizedDate.getUTCMonth() + 1).padStart(2, '0')}-${String(normalizedDate.getUTCDate()).padStart(2, '0')}`)
+    
     const workday = await prisma.workday.create({
       data: {
-        date: normalizeDateToUTC(date),
+        date: normalizedDate,
         employeeId,
         locationId,
         attended: attended !== undefined ? attended : true,
@@ -104,6 +107,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    console.log(`Workdays API: Created workday - Stored date: ${workday.date.toISOString()}, ID: ${workday.id}`)
     return NextResponse.json(workday, { status: 201 })
   } catch (error: any) {
     console.error('Payroll: Error creating workday:', error)
