@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     endDate.setHours(23, 59, 59, 999)
 
     console.log(`Payroll: Processing period from ${startDate.toISOString()} to ${endDate.toISOString()}`)
+    console.log(`Payroll: Pay period dates - Start: ${new Date(payPeriod.startDate).toISOString()}, End: ${new Date(payPeriod.endDate).toISOString()}`)
 
     // Get all workdays in the period
     const workdays = await prisma.workday.findMany({
@@ -64,6 +65,16 @@ export async function POST(request: NextRequest) {
     })
 
     console.log(`Payroll: Found ${workdays.length} workdays for period`)
+    
+    // Log workdays count by employee and location for debugging
+    const workdayCounts = new Map<string, number>()
+    for (const workday of workdays) {
+      const key = `${workday.employee.name} @ ${workday.location.name}`
+      workdayCounts.set(key, (workdayCounts.get(key) || 0) + 1)
+    }
+    for (const [key, count] of workdayCounts.entries()) {
+      console.log(`Payroll: ${key}: ${count} workdays`)
+    }
 
     // Helper function to normalize date to local timezone (midnight) to avoid timezone issues
     function normalizeDate(date: Date): Date {
@@ -109,7 +120,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Group by employee and location, tracking total earned (not just days)
-    const payrollMap = new Map<string, { employeeId: string; locationId: string; daysWorked: number; totalEarned: number }>()
+    const payrollMap = new Map<string, { employeeId: string; locationId: string; daysWorked: number; totalEarned: number; workdayDetails: string[] }>()
 
     for (const workday of workdays) {
       const key = `${workday.employeeId}-${workday.locationId}`
@@ -118,25 +129,37 @@ export async function POST(request: NextRequest) {
       const workdayDate = new Date(workday.date)
       const priceForDay = getPriceForDay(workday.location, workdayDate)
       
-      // Debug logging for first few workdays
-      if (workdays.indexOf(workday) < 10) {
-        console.log(`Payroll: Workday ${workdayDate.toISOString().split('T')[0]} - ${workday.employee.name} @ ${workday.location.name} - Price: $${priceForDay}`)
-      }
+      // Normalize date for logging
+      const dateStr = workdayDate.toISOString().split('T')[0]
+      const weekdayStr = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][normalizeDate(workdayDate).getDay() === 0 ? 0 : normalizeDate(workdayDate).getDay()]
+      
+      // Log all workdays
+      console.log(`Payroll: Workday ${dateStr} (${weekdayStr}) - ${workday.employee.name} @ ${workday.location.name} - Price: $${priceForDay.toFixed(2)}`)
 
       if (existing) {
         existing.daysWorked += 1
         existing.totalEarned += priceForDay
+        existing.workdayDetails.push(`${dateStr}: $${priceForDay.toFixed(2)}`)
       } else {
         payrollMap.set(key, {
           employeeId: workday.employeeId,
           locationId: workday.locationId,
           daysWorked: 1,
           totalEarned: priceForDay,
+          workdayDetails: [`${dateStr}: $${priceForDay.toFixed(2)}`],
         })
       }
     }
     
     console.log(`Payroll: Grouped into ${payrollMap.size} payroll entries`)
+    
+    // Log detailed breakdown for each payroll entry
+    for (const [key, data] of payrollMap.entries()) {
+      const employee = workdays.find(w => `${w.employeeId}-${w.locationId}` === key)?.employee
+      const location = workdays.find(w => `${w.employeeId}-${w.locationId}` === key)?.location
+      console.log(`Payroll Entry: ${employee?.name} @ ${location?.name} - Days: ${data.daysWorked}, Total: $${data.totalEarned.toFixed(2)}`)
+      console.log(`  Details: ${data.workdayDetails.join(', ')}`)
+    }
 
     // Create payroll records
     const payrolls = []
