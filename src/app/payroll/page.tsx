@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import html2canvas from 'html2canvas'
 import JSZip from 'jszip'
 import { ChevronDown } from 'lucide-react'
+import { getWeekdayUTC } from '@/lib/date-utils'
 
 interface Payroll {
   id: string
@@ -236,9 +237,123 @@ export default function PayrollPage() {
         ? `${formatDateForDisplay(customStartDate)} - ${formatDateForDisplay(customEndDate)}`
         : 'N/A'
 
+      // Helper function to get price for a day based on location and date
+      const getPriceForDay = (location: any, date: string): number => {
+        const weekday = getWeekdayUTC(date)
+        let price: number | null = null
+        
+        switch (weekday) {
+          case 1: // Monday
+            price = location.priceMonday ? Number(location.priceMonday) : null
+            break
+          case 2: // Tuesday
+            price = location.priceTuesday ? Number(location.priceTuesday) : null
+            break
+          case 3: // Wednesday
+            price = location.priceWednesday ? Number(location.priceWednesday) : null
+            break
+          case 4: // Thursday
+            price = location.priceThursday ? Number(location.priceThursday) : null
+            break
+          case 5: // Friday
+            price = location.priceFriday ? Number(location.priceFriday) : null
+            break
+          case 6: // Saturday
+            price = location.priceSaturday ? Number(location.priceSaturday) : null
+            break
+          case 7: // Sunday
+            price = location.priceSunday ? Number(location.priceSunday) : null
+            break
+        }
+        
+        // Fallback to pricePerDay if no specific weekday price
+        return price !== null ? price : (location.pricePerDay ? Number(location.pricePerDay) : 0)
+      }
+
+      // Helper function to format date to YYYY-MM-DD
+      const formatDateForAPI = (dateStr: string): string => {
+        const date = new Date(dateStr)
+        const year = date.getUTCFullYear()
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+        const day = String(date.getUTCDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+
+      // Helper function to format workdays as "11 (48) - 14 (54)"
+      const formatWorkdaysWithPrices = async (payroll: Payroll): Promise<string> => {
+        try {
+          // Get workdays for this payroll - format dates as YYYY-MM-DD for API
+          const startDateStr = selectedPeriodData 
+            ? formatDateForAPI(selectedPeriodData.startDate)
+            : customStartDate.split('/').reverse().join('-')
+          const endDateStr = selectedPeriodData
+            ? formatDateForAPI(selectedPeriodData.endDate)
+            : customEndDate.split('/').reverse().join('-')
+          
+          // Fetch workdays for this employee and location in the period
+          const params = new URLSearchParams()
+          params.append('employeeId', payroll.employeeId)
+          params.append('locationId', payroll.locationId)
+          if (startDateStr && endDateStr) {
+            params.append('startDate', startDateStr)
+            params.append('endDate', endDateStr)
+          }
+          
+          const workdaysRes = await fetch(`/api/workdays?${params.toString()}`)
+          const workdaysData = await workdaysRes.json()
+          const workdays = Array.isArray(workdaysData) ? workdaysData.filter((w: any) => w.attended) : []
+          
+          if (workdays.length === 0) {
+            return `${payroll.daysWorked}`
+          }
+          
+          // Get location from first workday (it includes price information)
+          // If workdays don't have location info, fetch it
+          let location = workdays[0]?.location || (payroll.location as any)
+          if (!location || (!location.pricePerDay && !location.priceMonday)) {
+            try {
+              const locationRes = await fetch(`/api/locations/${payroll.locationId}`)
+              const locationData = await locationRes.json()
+              location = locationData.location || location
+            } catch (error) {
+              console.error('Payroll: Error fetching location:', error)
+            }
+          }
+          
+          // Group workdays by date and calculate price for each
+          const dayPricePairs: Array<{ day: number; price: number }> = []
+          
+          workdays.forEach((workday: any) => {
+            const date = new Date(workday.date)
+            const day = date.getUTCDate()
+            // Use location from workday if available (has prices), otherwise use fetched location
+            const workdayLocation = workday.location || location
+            const price = getPriceForDay(workdayLocation, workday.date)
+            dayPricePairs.push({ day, price })
+          })
+          
+          // Sort by day
+          dayPricePairs.sort((a, b) => a.day - b.day)
+          
+          // Format as "11 (48) - 14 (54)"
+          return dayPricePairs.map(dp => `${dp.day} (${dp.price})`).join(' - ')
+        } catch (error) {
+          console.error('Payroll: Error formatting workdays:', error)
+          return `${payroll.daysWorked}`
+        }
+      }
+
       const imagePromises = Object.entries(payrollsByEmployee).map(async ([employeeName, employeePayrolls]) => {
         const totalDays = employeePayrolls.reduce((sum, p) => sum + p.daysWorked, 0)
         const totalEarned = employeePayrolls.reduce((sum, p) => sum + Number(p.totalEarned), 0)
+        
+        // Get workdays details for each payroll
+        const payrollsWithDays = await Promise.all(
+          employeePayrolls.map(async (p) => ({
+            ...p,
+            workdaysFormatted: await formatWorkdaysWithPrices(p)
+          }))
+        )
 
         // Create HTML for employee payroll
         const htmlContent = `
@@ -353,11 +468,11 @@ export default function PayrollPage() {
                 </tr>
               </thead>
               <tbody>
-                ${employeePayrolls.map(p => `
+                ${payrollsWithDays.map(p => `
                   <tr>
                     <td>${p.location.name}</td>
                     <td>${p.location.agency?.name || 'Sin agencia'}</td>
-                    <td>${p.daysWorked}</td>
+                    <td>${p.workdaysFormatted}</td>
                     <td>$${Number(p.totalEarned).toFixed(2)}</td>
                   </tr>
                 `).join('')}
