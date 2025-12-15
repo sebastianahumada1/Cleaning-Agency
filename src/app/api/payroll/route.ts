@@ -20,19 +20,21 @@ export async function GET(request: NextRequest) {
     
     // Filtro por fechas personalizado (si no hay payPeriodId)
     if (!payPeriodId && (startDate || endDate)) {
-      const dateFilter: any = {}
-      if (startDate) dateFilter.gte = new Date(startDate)
-      if (endDate) dateFilter.lte = new Date(endDate)
+      if (!startDate || !endDate) {
+        return NextResponse.json(
+          { error: 'Both startDate and endDate are required for custom date range' },
+          { status: 400 }
+        )
+      }
+      
+      const start = new Date(startDate)
+      const end = new Date(endDate)
+      
+      // Buscar períodos que se solapen con el rango de fechas
       where.payperiod = {
-        OR: [
-          { startDate: dateFilter },
-          { endDate: dateFilter },
-          {
-            AND: [
-              { startDate: { lte: endDate ? new Date(endDate) : undefined } },
-              { endDate: { gte: startDate ? new Date(startDate) : undefined } }
-            ]
-          }
+        AND: [
+          { startDate: { lte: end } },
+          { endDate: { gte: start } }
         ]
       }
     }
