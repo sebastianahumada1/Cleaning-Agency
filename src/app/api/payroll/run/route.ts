@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
     const { start: startDate, end: endDate } = createDateRange(payPeriodStartNormalized, payPeriodEndNormalized)
 
     console.log(`Payroll: Processing period from ${startDate.toISOString()} to ${endDate.toISOString()}`)
+    console.log(`Payroll: Date range for query - gte: ${startDate.toISOString()}, lt: ${endDate.toISOString()}`)
 
     // Get all workdays in the period
     // Use lt (less than) since endDate is now exclusive (start of next day)
@@ -70,6 +71,25 @@ export async function POST(request: NextRequest) {
     })
 
     console.log(`Payroll: Found ${workdays.length} workdays for period`)
+    
+    // Log detailed workday information for debugging
+    if (workdays.length > 0) {
+      console.log(`Payroll: Workdays found (first 10):`)
+      workdays.slice(0, 10).forEach(w => {
+        const dateUTC = `${w.date.getUTCFullYear()}-${String(w.date.getUTCMonth() + 1).padStart(2, '0')}-${String(w.date.getUTCDate()).padStart(2, '0')}`
+        console.log(`  - Date: ${w.date.toISOString()} (UTC: ${dateUTC}), Employee: ${w.employee.name}, Location: ${w.location.name}`)
+      })
+      
+      // Group by employee and location to see counts
+      const workdayMap = new Map<string, number>()
+      workdays.forEach(w => {
+        const key = `${w.employee.name}-${w.location.name}`
+        workdayMap.set(key, (workdayMap.get(key) || 0) + 1)
+      })
+      console.log(`Payroll: Workdays by employee-location:`, Array.from(workdayMap.entries()))
+    } else {
+      console.log(`Payroll: WARNING - No workdays found for this period!`)
+    }
     
     // Log workdays count by employee and location for debugging
     const workdayCounts = new Map<string, number>()
