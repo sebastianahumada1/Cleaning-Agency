@@ -92,10 +92,16 @@ export async function POST(request: NextRequest) {
       const weekdayNames = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
       
       // Helper to safely convert Decimal to number, checking for null/undefined
+      // Prisma Decimal can be an object with a toString() method or a number
       const safeNumber = (value: any): number | null => {
         if (value === null || value === undefined) return null
+        // Handle Prisma Decimal objects which have toString() method
+        if (typeof value === 'object' && typeof value.toString === 'function') {
+          const num = parseFloat(value.toString())
+          return isNaN(num) || num === 0 ? null : num
+        }
         const num = Number(value)
-        return isNaN(num) ? null : num
+        return isNaN(num) || num === 0 ? null : num
       }
       
       // Check if there's a specific price for this weekday
