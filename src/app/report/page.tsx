@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ChevronDown } from 'lucide-react'
+import { formatDateUTC } from '@/lib/date-utils'
 
 interface Schedule {
   id: string
@@ -210,14 +211,17 @@ export default function ReportPage() {
         // Add days where this schedule applies
         daysInRange.forEach((dayInfo) => {
           if (dayInfo.weekday === schedule.weekday) {
-            // Check if there's a workday for this day
+            // Check if there's a workday for this day using UTC comparison
             const workday = workdaysArray.find(
-              (w: Workday) =>
-                w.employeeId === schedule.employeeId &&
-                w.locationId === schedule.locationId &&
-                new Date(w.date).getDate() === dayInfo.day &&
-                new Date(w.date).getMonth() === dayInfo.date.getMonth() &&
-                new Date(w.date).getFullYear() === dayInfo.date.getFullYear()
+              (w: Workday) => {
+                const workdayDate = new Date(w.date)
+                const dayInfoDate = dayInfo.date
+                return w.employeeId === schedule.employeeId &&
+                  w.locationId === schedule.locationId &&
+                  workdayDate.getUTCDate() === dayInfoDate.getUTCDate() &&
+                  workdayDate.getUTCMonth() === dayInfoDate.getUTCMonth() &&
+                  workdayDate.getUTCFullYear() === dayInfoDate.getUTCFullYear()
+              }
             )
             
             locationReport.days.push({
@@ -292,7 +296,8 @@ export default function ReportPage() {
 
   async function toggleDayAttendance(employeeId: string, locationId: string, dayInfo: LocationDay) {
     try {
-      const dateStr = dayInfo.date.toISOString().split('T')[0]
+      // Use formatDateUTC to ensure consistent date extraction using UTC
+      const dateStr = formatDateUTC(dayInfo.date)
       
       // Fetch current schedules if not loaded
       let currentSchedules = schedules
@@ -428,7 +433,8 @@ export default function ReportPage() {
         return
       }
 
-      const dateStr = dayInfo.date.toISOString().split('T')[0]
+      // Use formatDateUTC to ensure consistent date extraction using UTC
+      const dateStr = formatDateUTC(dayInfo.date)
 
       // Check if workday already exists
       const existingWorkday = workdays.find(
@@ -550,7 +556,8 @@ export default function ReportPage() {
           for (const location of employee.locations) {
             for (const dayInfo of location.days) {
               if (!dayInfo.workdayId && (dayInfo.attended === true || dayInfo.attended === undefined)) {
-                const dateStr = dayInfo.date.toISOString().split('T')[0]
+                // Use formatDateUTC to ensure consistent date extraction using UTC
+                const dateStr = formatDateUTC(dayInfo.date)
                 try {
                   const res = await fetch('/api/workdays', {
                     method: 'POST',
