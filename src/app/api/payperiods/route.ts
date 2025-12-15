@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { normalizeDateToUTC } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -38,8 +39,8 @@ export async function POST(request: NextRequest) {
 
     const payPeriod = await prisma.payPeriod.create({
       data: {
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: normalizeDateToUTC(startDate),
+        endDate: normalizeDateToUTC(endDate),
       },
     })
 

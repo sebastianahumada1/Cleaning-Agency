@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { normalizeDateToUTC, getWeekdayUTC } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -11,22 +12,24 @@ async function handleRequest(request: Request) {
   }
 
   try {
-    // Get tomorrow's date
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    tomorrow.setHours(0, 0, 0, 0)
+    // Get tomorrow's date in UTC
+    const today = new Date()
+    const tomorrow = new Date(today)
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+    tomorrow.setUTCHours(0, 0, 0, 0)
+    const tomorrowNormalized = normalizeDateToUTC(tomorrow)
 
-    // Get weekday (1 = Monday, 7 = Sunday)
-    const weekday = tomorrow.getDay() === 0 ? 7 : tomorrow.getDay()
+    // Get weekday (1 = Monday, 7 = Sunday) using UTC
+    const weekday = getWeekdayUTC(tomorrowNormalized)
 
     // Find all active schedules for tomorrow's weekday
     const schedules = await prisma.schedule.findMany({
       where: {
         weekday,
-        startDate: { lte: tomorrow },
+        startDate: { lte: tomorrowNormalized },
         OR: [
           { endDate: null },
-          { endDate: { gte: tomorrow } },
+          { endDate: { gte: tomorrowNormalized } },
         ],
       },
       include: {
@@ -43,7 +46,7 @@ async function handleRequest(request: Request) {
       const existing = await prisma.workday.findUnique({
         where: {
           date_employeeId_locationId: {
-            date: tomorrow,
+            date: tomorrowNormalized,
             employeeId: schedule.employeeId,
             locationId: schedule.locationId,
           },
@@ -54,7 +57,7 @@ async function handleRequest(request: Request) {
         skipped.push({
           employee: schedule.employee.name,
           location: schedule.location.name,
-          date: tomorrow.toISOString(),
+          date: tomorrowNormalized.toISOString(),
         })
         continue
       }
@@ -62,7 +65,7 @@ async function handleRequest(request: Request) {
       // Create workday
       const workday = await prisma.workday.create({
         data: {
-          date: tomorrow,
+          date: tomorrowNormalized,
           employeeId: schedule.employeeId,
           locationId: schedule.locationId,
           attended: true,
@@ -72,14 +75,14 @@ async function handleRequest(request: Request) {
       created.push({
         employee: schedule.employee.name,
         location: schedule.location.name,
-        date: tomorrow.toISOString(),
+        date: tomorrowNormalized.toISOString(),
         workdayId: workday.id,
       })
     }
 
     return NextResponse.json({
       success: true,
-      date: tomorrow.toISOString(),
+      date: tomorrowNormalized.toISOString(),
       weekday,
       created: created.length,
       skipped: skipped.length,

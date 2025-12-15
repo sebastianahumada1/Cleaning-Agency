@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { normalizeDateToUTC } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -16,9 +17,9 @@ export async function PUT(
     if (employeeId) updateData.employeeId = employeeId
     if (locationId) updateData.locationId = locationId
     if (weekday) updateData.weekday = parseInt(weekday)
-    if (startDate) updateData.startDate = new Date(startDate)
+    if (startDate) updateData.startDate = normalizeDateToUTC(startDate)
     if (endDate !== undefined)
-      updateData.endDate = endDate ? new Date(endDate) : null
+      updateData.endDate = endDate ? normalizeDateToUTC(endDate) : null
 
     const schedule = await prisma.schedule.update({
       where: { id },

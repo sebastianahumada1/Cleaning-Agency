@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { createDateRange } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -18,10 +19,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const start = new Date(startDate)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(endDate)
-    end.setHours(23, 59, 59, 999)
+    const { start, end } = createDateRange(startDate, endDate)
 
     const where: any = {
       date: {

@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pencil, Trash2, Plus, CalendarX } from 'lucide-react'
+import { getWeekdayUTC } from '@/lib/date-utils'
 
 interface Workday {
   id: string
@@ -336,13 +337,8 @@ export default function WorkdaysPage() {
   }
 
   function getPriceForDay(location: Workday['location'], date: string): number {
-    const dateObj = new Date(date)
-    // Normalize date using UTC methods to avoid timezone conversion issues
-    const year = dateObj.getUTCFullYear()
-    const month = dateObj.getUTCMonth()
-    const day = dateObj.getUTCDate()
-    const normalizedDate = new Date(year, month, day)
-    const weekday = normalizedDate.getDay() === 0 ? 7 : normalizedDate.getDay() // 1=Mon, 7=Sun
+    // Use UTC weekday calculation
+    const weekday = getWeekdayUTC(date)
     
     // Check if there's a specific price for this weekday
     let price: number | null = null

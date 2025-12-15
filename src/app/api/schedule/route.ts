@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { normalizeDateToUTC } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -60,9 +61,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use today as startDate and null as endDate (permanent schedule)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Use today as startDate and null as endDate (permanent schedule) in UTC
+    const today = normalizeDateToUTC(new Date())
 
     const schedule = await prisma.schedule.create({
       data: {

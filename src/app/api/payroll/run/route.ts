@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { createDateRange, normalizeDateToUTC, getWeekdayUTC } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -32,14 +33,8 @@ export async function POST(request: NextRequest) {
       where: { payPeriodId },
     })
 
-    // Normalize pay period dates to ensure we include all workdays
-    // Set startDate to beginning of day (00:00:00)
-    const startDate = new Date(payPeriod.startDate)
-    startDate.setHours(0, 0, 0, 0)
-    
-    // Set endDate to end of day (23:59:59.999) to include all workdays on the last day
-    const endDate = new Date(payPeriod.endDate)
-    endDate.setHours(23, 59, 59, 999)
+    // Normalize pay period dates to ensure we include all workdays using UTC
+    const { start: startDate, end: endDate } = createDateRange(payPeriod.startDate, payPeriod.endDate)
 
     console.log(`Payroll: Processing period from ${startDate.toISOString()} to ${endDate.toISOString()}`)
     console.log(`Payroll: Pay period dates - Start: ${new Date(payPeriod.startDate).toISOString()}, End: ${new Date(payPeriod.endDate).toISOString()}`)
@@ -76,28 +71,16 @@ export async function POST(request: NextRequest) {
       console.log(`Payroll: ${key}: ${count} workdays`)
     }
 
-    // Helper function to normalize date to avoid timezone issues
-    // Uses UTC methods to extract date components to avoid timezone shifts
-    function normalizeDate(date: Date): Date {
-      // Extract date components using UTC to avoid timezone conversion issues
-      const year = date.getUTCFullYear()
-      const month = date.getUTCMonth()
-      const day = date.getUTCDate()
-      // Create date in local timezone but with correct year/month/day
-      const normalized = new Date(year, month, day)
-      return normalized
-    }
-
-    // Helper function to get price for a specific day
+    // Helper function to get price for a specific day using UTC
     function getPriceForDay(location: any, date: Date): number {
-      // Normalize date to avoid timezone issues
-      const normalizedDate = normalizeDate(date)
-      const weekday = normalizedDate.getDay() === 0 ? 7 : normalizedDate.getDay() // 1=Mon, 7=Sun
+      // Use UTC weekday calculation
+      const weekday = getWeekdayUTC(date)
       
       // Debug: log weekday calculation for Saturday dates
       const dateStr = date.toISOString().split('T')[0]
-      if (normalizedDate.getDay() === 6 || normalizedDate.getDay() === 0) {
-        console.log(`Payroll: Date ${dateStr} -> Weekday: ${weekday} (${['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][normalizedDate.getDay()]})`)
+      if (weekday === 6 || weekday === 7) {
+        const weekdayNames = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+        console.log(`Payroll: Date ${dateStr} -> Weekday: ${weekday} (${weekdayNames[weekday]})`)
       }
       
       // Check if there's a specific price for this weekday
@@ -142,7 +125,9 @@ export async function POST(request: NextRequest) {
       
       // Normalize date for logging
       const dateStr = workdayDate.toISOString().split('T')[0]
-      const weekdayStr = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][normalizeDate(workdayDate).getDay() === 0 ? 0 : normalizeDate(workdayDate).getDay()]
+      const weekday = getWeekdayUTC(workdayDate)
+      const weekdayNames = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+      const weekdayStr = weekdayNames[weekday]
       
       // Log all workdays
       console.log(`Payroll: Workday ${dateStr} (${weekdayStr}) - ${workday.employee.name} @ ${workday.location.name} - Price: $${priceForDay.toFixed(2)}`)

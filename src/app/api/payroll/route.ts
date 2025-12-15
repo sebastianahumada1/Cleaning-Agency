@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { createDateRange } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -27,8 +28,7 @@ export async function GET(request: NextRequest) {
         )
       }
       
-      const start = new Date(startDate)
-      const end = new Date(endDate)
+      const { start, end } = createDateRange(startDate, endDate)
       
       // Buscar períodos que se solapen con el rango de fechas
       where.payperiod = {

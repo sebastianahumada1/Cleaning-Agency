@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { createDateRange, normalizeDateToUTC } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -16,14 +17,15 @@ export async function GET(request: NextRequest) {
     if (locationId) where.locationId = locationId
     if (startDate || endDate) {
       where.date = {}
-      if (startDate) {
-        const start = new Date(startDate)
-        start.setHours(0, 0, 0, 0)
+      if (startDate && endDate) {
+        const { start, end } = createDateRange(startDate, endDate)
         where.date.gte = start
-      }
-      if (endDate) {
-        const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999)
+        where.date.lte = end
+      } else if (startDate) {
+        const { start } = createDateRange(startDate, startDate)
+        where.date.gte = start
+      } else if (endDate) {
+        const { end } = createDateRange(endDate, endDate)
         where.date.lte = end
       }
     }
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     const workday = await prisma.workday.create({
       data: {
-        date: new Date(date),
+        date: normalizeDateToUTC(date),
         employeeId,
         locationId,
         attended: attended !== undefined ? attended : true,

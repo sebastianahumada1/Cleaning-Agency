@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { normalizeDateToUTC } from '@/lib/date-utils'
 
 export const runtime = 'nodejs'
 
@@ -13,7 +14,7 @@ export async function PUT(
     const { date, employeeId, locationId, attended, hoursWorked, notes } = body
 
     const updateData: any = {}
-    if (date) updateData.date = new Date(date)
+    if (date) updateData.date = normalizeDateToUTC(date)
     if (employeeId) updateData.employeeId = employeeId
     if (locationId) updateData.locationId = locationId
     if (attended !== undefined) updateData.attended = attended

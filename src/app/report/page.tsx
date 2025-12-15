@@ -121,14 +121,15 @@ export default function ReportPage() {
   }, [])
 
   function getDaysInRange(start: string, end: string): { day: number; date: Date; weekday: number }[] {
-    const startDate = new Date(start)
-    const endDate = new Date(end)
+    // Use UTC to ensure consistent date handling
+    const startDate = new Date(start + 'T00:00:00.000Z')
+    const endDate = new Date(end + 'T00:00:00.000Z')
     const days: { day: number; date: Date; weekday: number }[] = []
     
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const weekday = d.getDay() === 0 ? 7 : d.getDay() // 1=Monday, 7=Sunday
+    for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+      const weekday = d.getUTCDay() === 0 ? 7 : d.getUTCDay() // 1=Monday, 7=Sunday
       days.push({
-        day: d.getDate(),
+        day: d.getUTCDate(),
         date: new Date(d),
         weekday,
       })
