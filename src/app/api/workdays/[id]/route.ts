@@ -31,8 +31,14 @@ export async function PUT(
     })
 
     return NextResponse.json(workday)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Payroll: Error updating workday:', error)
+    if (error.code === 'P1002') {
+      return NextResponse.json(
+        { error: 'Database connection error. Please try again.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: 'Failed to update workday' },
       { status: 500 }
@@ -51,8 +57,14 @@ export async function DELETE(
     })
 
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Payroll: Error deleting workday:', error)
+    if (error.code === 'P1002') {
+      return NextResponse.json(
+        { error: 'Database connection error. Please try again.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: 'Failed to delete workday' },
       { status: 500 }
