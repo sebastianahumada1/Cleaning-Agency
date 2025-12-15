@@ -63,9 +63,21 @@ export async function POST(request: NextRequest) {
     
     // Log workdays count by employee and location for debugging
     const workdayCounts = new Map<string, number>()
+    const locationPrices = new Map<string, any>()
     for (const workday of workdays) {
       const key = `${workday.employee.name} @ ${workday.location.name}`
       workdayCounts.set(key, (workdayCounts.get(key) || 0) + 1)
+      
+      // Log location prices for debugging (first time we see each location)
+      const locationKey = workday.location.name
+      if (!locationPrices.has(locationKey)) {
+        locationPrices.set(locationKey, workday.location)
+        console.log(`Payroll: Location "${locationKey}" prices:`, {
+          pricePerDay: workday.location.pricePerDay,
+          priceSaturday: workday.location.priceSaturday,
+          priceSunday: workday.location.priceSunday,
+        })
+      }
     }
     for (const [key, count] of workdayCounts.entries()) {
       console.log(`Payroll: ${key}: ${count} workdays`)
