@@ -34,10 +34,17 @@ export async function POST(request: NextRequest) {
     })
 
     // Normalize pay period dates to ensure we include all workdays using UTC
-    const { start: startDate, end: endDate } = createDateRange(payPeriod.startDate, payPeriod.endDate)
+    // Extract UTC components directly from Prisma Date objects to avoid timezone issues
+    const payPeriodStart = new Date(payPeriod.startDate)
+    const payPeriodEnd = new Date(payPeriod.endDate)
+    
+    // Log original dates from database
+    console.log(`Payroll: Pay period from DB - Start: ${payPeriodStart.toISOString()}, End: ${payPeriodEnd.toISOString()}`)
+    console.log(`Payroll: Pay period UTC components - Start: ${payPeriodStart.getUTCFullYear()}-${String(payPeriodStart.getUTCMonth() + 1).padStart(2, '0')}-${String(payPeriodStart.getUTCDate()).padStart(2, '0')}, End: ${payPeriodEnd.getUTCFullYear()}-${String(payPeriodEnd.getUTCMonth() + 1).padStart(2, '0')}-${String(payPeriodEnd.getUTCDate()).padStart(2, '0')}`)
+    
+    const { start: startDate, end: endDate } = createDateRange(payPeriodStart, payPeriodEnd)
 
     console.log(`Payroll: Processing period from ${startDate.toISOString()} to ${endDate.toISOString()}`)
-    console.log(`Payroll: Pay period dates - Start: ${new Date(payPeriod.startDate).toISOString()}, End: ${new Date(payPeriod.endDate).toISOString()}`)
 
     // Get all workdays in the period
     // Use lt (less than) since endDate is now exclusive (start of next day)
