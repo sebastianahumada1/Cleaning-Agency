@@ -16,14 +16,24 @@ export async function GET(request: NextRequest) {
       },
       include: {
         employee: true,
-        location: true,
+        location: {
+          include: {
+            agency: true,
+          },
+        },
       },
       orderBy: [{ weekday: 'asc' }, { startDate: 'asc' }],
     })
 
     return NextResponse.json(schedules)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Payroll: Error fetching schedules:', error)
+    if (error.code === 'P1002') {
+      return NextResponse.json(
+        { error: 'Database connection error. Please try again.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: 'Failed to fetch schedules' },
       { status: 500 }
@@ -64,7 +74,11 @@ export async function POST(request: NextRequest) {
       },
       include: {
         employee: true,
-        location: true,
+        location: {
+          include: {
+            agency: true,
+          },
+        },
       },
     })
 

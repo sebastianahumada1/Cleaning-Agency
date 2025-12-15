@@ -32,14 +32,24 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         employee: true,
-        location: true,
+        location: {
+          include: {
+            agency: true,
+          },
+        },
       },
       orderBy: { date: 'desc' },
     })
 
     return NextResponse.json(workdays)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Payroll: Error fetching workdays:', error)
+    if (error.code === 'P1002') {
+      return NextResponse.json(
+        { error: 'Database connection error. Please try again.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: 'Failed to fetch workdays' },
       { status: 500 }

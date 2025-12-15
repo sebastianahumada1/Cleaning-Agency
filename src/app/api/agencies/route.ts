@@ -9,8 +9,14 @@ export async function GET() {
       orderBy: { name: 'asc' },
     })
     return NextResponse.json(agencies)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Payroll: Error fetching agencies:', error)
+    if (error.code === 'P1002') {
+      return NextResponse.json(
+        { error: 'Database connection error. Please try again.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: 'Failed to fetch agencies' },
       { status: 500 }
