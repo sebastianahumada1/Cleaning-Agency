@@ -76,10 +76,15 @@ export async function POST(request: NextRequest) {
       console.log(`Payroll: ${key}: ${count} workdays`)
     }
 
-    // Helper function to normalize date to local timezone (midnight) to avoid timezone issues
+    // Helper function to normalize date to avoid timezone issues
+    // Uses UTC methods to extract date components to avoid timezone shifts
     function normalizeDate(date: Date): Date {
-      // Create a new date using the year, month, and day in local timezone
-      const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      // Extract date components using UTC to avoid timezone conversion issues
+      const year = date.getUTCFullYear()
+      const month = date.getUTCMonth()
+      const day = date.getUTCDate()
+      // Create date in local timezone but with correct year/month/day
+      const normalized = new Date(year, month, day)
       return normalized
     }
 
@@ -88,6 +93,12 @@ export async function POST(request: NextRequest) {
       // Normalize date to avoid timezone issues
       const normalizedDate = normalizeDate(date)
       const weekday = normalizedDate.getDay() === 0 ? 7 : normalizedDate.getDay() // 1=Mon, 7=Sun
+      
+      // Debug: log weekday calculation for Saturday dates
+      const dateStr = date.toISOString().split('T')[0]
+      if (normalizedDate.getDay() === 6 || normalizedDate.getDay() === 0) {
+        console.log(`Payroll: Date ${dateStr} -> Weekday: ${weekday} (${['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][normalizedDate.getDay()]})`)
+      }
       
       // Check if there's a specific price for this weekday
       let price: number | null = null
