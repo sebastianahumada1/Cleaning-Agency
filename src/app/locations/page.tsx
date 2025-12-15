@@ -264,14 +264,14 @@ export default function LocationsPage() {
                     </Button>
                   </div>
                   <Select
-                    value={formData.agencyId}
-                    onValueChange={(value) => setFormData({ ...formData, agencyId: value })}
+                    value={formData.agencyId || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, agencyId: value === "none" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar agencia (opcional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sin agencia</SelectItem>
+                      <SelectItem value="none">Sin agencia</SelectItem>
                       {agencies.map((agency) => (
                         <SelectItem key={agency.id} value={agency.id}>
                           {agency.name}
