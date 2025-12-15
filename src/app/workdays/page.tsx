@@ -112,7 +112,26 @@ export default function WorkdaysPage() {
       const url = `/api/workdays?${params.toString()}`
       const res = await fetch(url)
       const data = await res.json()
-      setWorkdays(Array.isArray(data) ? data : [])
+      let workdaysArray = Array.isArray(data) ? data : []
+      
+      // Additional client-side filtering to ensure dates match the filter
+      // This handles cases where dates in DB might have timezone issues
+      if (startDate || endDate) {
+        workdaysArray = workdaysArray.filter((workday: Workday) => {
+          const workdayDateStr = new Date(workday.date).toISOString().split('T')[0]
+          
+          if (startDate && endDate) {
+            return workdayDateStr >= startDate && workdayDateStr <= endDate
+          } else if (startDate) {
+            return workdayDateStr >= startDate
+          } else if (endDate) {
+            return workdayDateStr <= endDate
+          }
+          return true
+        })
+      }
+      
+      setWorkdays(workdaysArray)
     } catch (error) {
       console.error('Payroll: Error fetching workdays:', error)
       setWorkdays([])
