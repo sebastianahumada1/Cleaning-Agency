@@ -190,10 +190,27 @@ export default function PayrollPage() {
       const zip = new JSZip()
       const selectedPeriodData = periodId ? payPeriods.find(p => p.id === periodId) : null
       // Simple period label for folder name
+      // Format dates using UTC to avoid timezone issues
+      const formatDateForLabel = (dateStr: string) => {
+        const date = new Date(dateStr)
+        const year = date.getUTCFullYear()
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+        const day = String(date.getUTCDate()).padStart(2, '0')
+        return `${day}-${month}-${year}`
+      }
+
+      const formatDateForDisplay = (dateStr: string) => {
+        const date = new Date(dateStr)
+        const year = date.getUTCFullYear()
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+        const day = String(date.getUTCDate()).padStart(2, '0')
+        return `${day}/${month}/${year}`
+      }
+
       const periodLabel = selectedPeriodData
-        ? `${new Date(selectedPeriodData.startDate).toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-')}_${new Date(selectedPeriodData.endDate).toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-')}`
+        ? `${formatDateForLabel(selectedPeriodData.startDate)}_${formatDateForLabel(selectedPeriodData.endDate)}`
         : useCustomDates && customStartDate && customEndDate
-        ? `${customStartDate}_${customEndDate}`
+        ? `${customStartDate.replace(/\//g, '-')}_${customEndDate.replace(/\//g, '-')}`
         : 'periodo'
 
       // Group payrolls by employee
@@ -208,9 +225,9 @@ export default function PayrollPage() {
 
       // Generate image for each employee
       const periodLabelForExport = selectedPeriodData
-        ? `${new Date(selectedPeriodData.startDate).toLocaleDateString('es-ES')} - ${new Date(selectedPeriodData.endDate).toLocaleDateString('es-ES')}`
+        ? `${formatDateForDisplay(selectedPeriodData.startDate)} - ${formatDateForDisplay(selectedPeriodData.endDate)}`
         : useCustomDates && customStartDate && customEndDate
-        ? `${new Date(customStartDate).toLocaleDateString('es-ES')} - ${new Date(customEndDate).toLocaleDateString('es-ES')}`
+        ? `${formatDateForDisplay(customStartDate)} - ${formatDateForDisplay(customEndDate)}`
         : 'N/A'
 
       const imagePromises = Object.entries(payrollsByEmployee).map(async ([employeeName, employeePayrolls]) => {
@@ -541,11 +558,21 @@ export default function PayrollPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Todos los períodos</SelectItem>
-                      {payPeriods.map((period) => (
-                        <SelectItem key={period.id} value={period.id}>
-                          {new Date(period.startDate).toLocaleDateString('es-ES')} - {new Date(period.endDate).toLocaleDateString('es-ES')}
-                        </SelectItem>
-                      ))}
+                      {payPeriods.map((period) => {
+                        // Format dates using UTC to avoid timezone issues
+                        const formatPeriodDate = (dateStr: string) => {
+                          const date = new Date(dateStr)
+                          const year = date.getUTCFullYear()
+                          const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+                          const day = String(date.getUTCDate()).padStart(2, '0')
+                          return `${day}/${month}/${year}`
+                        }
+                        return (
+                          <SelectItem key={period.id} value={period.id}>
+                            {formatPeriodDate(period.startDate)} - {formatPeriodDate(period.endDate)}
+                          </SelectItem>
+                        )
+                      })}
                     </SelectContent>
                   </Select>
                 )}
