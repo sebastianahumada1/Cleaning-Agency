@@ -49,6 +49,18 @@ export async function GET(request: NextRequest) {
       orderBy: { date: 'desc' },
     })
 
+    // Log first few workdays to debug date filtering
+    if (workdays.length > 0) {
+      console.log(`Workdays: Found ${workdays.length} workdays. First 3 dates:`, 
+        workdays.slice(0, 3).map(w => ({
+          date: w.date.toISOString(),
+          dateStr: w.date.toISOString().split('T')[0],
+          employee: w.employee.name,
+          location: w.location.name
+        }))
+      )
+    }
+
     return NextResponse.json(workdays)
   } catch (error: any) {
     console.error('Payroll: Error fetching workdays:', error)

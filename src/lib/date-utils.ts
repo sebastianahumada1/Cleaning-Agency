@@ -9,7 +9,21 @@
  * @returns Date object normalized to UTC midnight
  */
 export function normalizeDateToUTC(date: string | Date): Date {
-  const dateObj = typeof date === 'string' ? new Date(date + 'T00:00:00.000Z') : date
+  let dateObj: Date
+  
+  if (typeof date === 'string') {
+    // If it's a string, parse it as UTC date directly
+    // Handle both YYYY-MM-DD and Date objects
+    if (date.includes('T')) {
+      dateObj = new Date(date)
+    } else {
+      // For YYYY-MM-DD format, create UTC date directly
+      const [year, month, day] = date.split('-').map(Number)
+      return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+    }
+  } else {
+    dateObj = date
+  }
   
   // Extract UTC components to avoid timezone conversion issues
   const year = dateObj.getUTCFullYear()
