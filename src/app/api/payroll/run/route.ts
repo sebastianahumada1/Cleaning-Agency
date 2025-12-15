@@ -34,15 +34,17 @@ export async function POST(request: NextRequest) {
     })
 
     // Normalize pay period dates to ensure we include all workdays using UTC
-    // Extract UTC components directly from Prisma Date objects to avoid timezone issues
-    const payPeriodStart = new Date(payPeriod.startDate)
-    const payPeriodEnd = new Date(payPeriod.endDate)
+    // Prisma returns Date objects, but we need to extract UTC components to avoid timezone issues
+    // Use normalizeDateToUTC to ensure we get the correct date regardless of time component
+    const payPeriodStartNormalized = normalizeDateToUTC(payPeriod.startDate)
+    const payPeriodEndNormalized = normalizeDateToUTC(payPeriod.endDate)
     
-    // Log original dates from database
-    console.log(`Payroll: Pay period from DB - Start: ${payPeriodStart.toISOString()}, End: ${payPeriodEnd.toISOString()}`)
-    console.log(`Payroll: Pay period UTC components - Start: ${payPeriodStart.getUTCFullYear()}-${String(payPeriodStart.getUTCMonth() + 1).padStart(2, '0')}-${String(payPeriodStart.getUTCDate()).padStart(2, '0')}, End: ${payPeriodEnd.getUTCFullYear()}-${String(payPeriodEnd.getUTCMonth() + 1).padStart(2, '0')}-${String(payPeriodEnd.getUTCDate()).padStart(2, '0')}`)
+    // Log original dates from database and normalized versions
+    console.log(`Payroll: Pay period from DB - Start: ${new Date(payPeriod.startDate).toISOString()}, End: ${new Date(payPeriod.endDate).toISOString()}`)
+    console.log(`Payroll: Pay period normalized - Start: ${payPeriodStartNormalized.toISOString()}, End: ${payPeriodEndNormalized.toISOString()}`)
+    console.log(`Payroll: Pay period UTC components - Start: ${payPeriodStartNormalized.getUTCFullYear()}-${String(payPeriodStartNormalized.getUTCMonth() + 1).padStart(2, '0')}-${String(payPeriodStartNormalized.getUTCDate()).padStart(2, '0')}, End: ${payPeriodEndNormalized.getUTCFullYear()}-${String(payPeriodEndNormalized.getUTCMonth() + 1).padStart(2, '0')}-${String(payPeriodEndNormalized.getUTCDate()).padStart(2, '0')}`)
     
-    const { start: startDate, end: endDate } = createDateRange(payPeriodStart, payPeriodEnd)
+    const { start: startDate, end: endDate } = createDateRange(payPeriodStartNormalized, payPeriodEndNormalized)
 
     console.log(`Payroll: Processing period from ${startDate.toISOString()} to ${endDate.toISOString()}`)
 
