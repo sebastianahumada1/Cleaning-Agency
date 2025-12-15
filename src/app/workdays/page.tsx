@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Pencil, Trash2, Plus } from 'lucide-react'
+import { Pencil, Trash2, Plus, CalendarX } from 'lucide-react'
 
 interface Workday {
   id: string
@@ -66,6 +66,14 @@ export default function WorkdaysPage() {
   const [newWorkdayHoursWorked, setNewWorkdayHoursWorked] = useState<string>('')
   const [newWorkdayNotes, setNewWorkdayNotes] = useState('')
   const [creatingWorkday, setCreatingWorkday] = useState(false)
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
+  const [bulkDeleteStartDate, setBulkDeleteStartDate] = useState('')
+  const [bulkDeleteEndDate, setBulkDeleteEndDate] = useState('')
+  const [bulkDeleteEmployeeId, setBulkDeleteEmployeeId] = useState<string>('')
+  const [bulkDeleteLocationId, setBulkDeleteLocationId] = useState<string>('')
+  const [deletingBulk, setDeletingBulk] = useState(false)
+  const [bulkDeleteCount, setBulkDeleteCount] = useState<number | null>(null)
+  const [countingBulk, setCountingBulk] = useState(false)
 
   useEffect(() => {
     fetchEmployeesAndLocations()
@@ -180,6 +188,99 @@ export default function WorkdaysPage() {
       console.error('Payroll: Error deleting workday:', error)
       alert('Error al eliminar el día de trabajo')
     }
+  }
+
+  async function handleCountBulkDelete() {
+    if (!bulkDeleteStartDate || !bulkDeleteEndDate) {
+      alert('Por favor selecciona ambas fechas')
+      return
+    }
+
+    setCountingBulk(true)
+    try {
+      const params = new URLSearchParams()
+      params.append('startDate', bulkDeleteStartDate)
+      params.append('endDate', bulkDeleteEndDate)
+      if (bulkDeleteEmployeeId) params.append('employeeId', bulkDeleteEmployeeId)
+      if (bulkDeleteLocationId) params.append('locationId', bulkDeleteLocationId)
+
+      // Primero contar los registros que coinciden
+      const countRes = await fetch(`/api/workdays?${params.toString()}`)
+      const workdaysData = await countRes.json()
+      const workdaysArray = Array.isArray(workdaysData) ? workdaysData : []
+      setBulkDeleteCount(workdaysArray.length)
+
+      if (workdaysArray.length === 0) {
+        alert('No se encontraron días de trabajo en el rango especificado')
+      }
+    } catch (error) {
+      console.error('Payroll: Error counting workdays:', error)
+      alert('Error al contar los días de trabajo')
+    } finally {
+      setCountingBulk(false)
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (!bulkDeleteStartDate || !bulkDeleteEndDate) {
+      alert('Por favor selecciona ambas fechas')
+      return
+    }
+
+    if (bulkDeleteCount === null || bulkDeleteCount === 0) {
+      alert('No hay días de trabajo para eliminar en el rango especificado')
+      return
+    }
+
+    const confirmMessage = `¿Estás seguro de que deseas eliminar ${bulkDeleteCount} día(s) de trabajo?\n\n` +
+      `Rango: ${new Date(bulkDeleteStartDate).toLocaleDateString('es-ES')} - ${new Date(bulkDeleteEndDate).toLocaleDateString('es-ES')}\n` +
+      (bulkDeleteEmployeeId ? `Empleado: ${employees.find(e => e.id === bulkDeleteEmployeeId)?.name || 'Filtrado'}\n` : '') +
+      (bulkDeleteLocationId ? `Ubicación: ${locations.find(l => l.id === bulkDeleteLocationId)?.name || 'Filtrado'}\n` : '') +
+      `\nEsta acción no se puede deshacer.`
+
+    if (!confirm(confirmMessage)) return
+
+    setDeletingBulk(true)
+    try {
+      const params = new URLSearchParams()
+      params.append('startDate', bulkDeleteStartDate)
+      params.append('endDate', bulkDeleteEndDate)
+      if (bulkDeleteEmployeeId) params.append('employeeId', bulkDeleteEmployeeId)
+      if (bulkDeleteLocationId) params.append('locationId', bulkDeleteLocationId)
+
+      const res = await fetch(`/api/workdays/bulk-delete?${params.toString()}`, {
+        method: 'DELETE',
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        alert(`✓ ${data.message}`)
+        setBulkDeleteDialogOpen(false)
+        setBulkDeleteStartDate('')
+        setBulkDeleteEndDate('')
+        setBulkDeleteEmployeeId('')
+        setBulkDeleteLocationId('')
+        setBulkDeleteCount(null)
+        fetchWorkdays()
+      } else {
+        alert(data.error || 'Error al eliminar los días de trabajo')
+      }
+    } catch (error) {
+      console.error('Payroll: Error deleting workdays:', error)
+      alert('Error al eliminar los días de trabajo')
+    } finally {
+      setDeletingBulk(false)
+    }
+  }
+
+  function openBulkDeleteDialog() {
+    setBulkDeleteStartDate(startDate)
+    setBulkDeleteEndDate(endDate)
+    setBulkDeleteEmployeeId(selectedEmployeeId)
+    setBulkDeleteLocationId(selectedLocationId)
+    setBulkDeleteCount(null)
+    setBulkDeleteDialogOpen(true)
   }
 
   function openAddDialog() {
@@ -353,10 +454,20 @@ export default function WorkdaysPage() {
               <CardTitle>Días Trabajados ({workdays.length})</CardTitle>
               <CardDescription>Registros diarios de trabajo</CardDescription>
             </div>
-            <Button onClick={openAddDialog} className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Agregar Día Trabajado
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={openAddDialog} className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Agregar Día Trabajado
+              </Button>
+              <Button 
+                onClick={openBulkDeleteDialog} 
+                variant="destructive" 
+                className="flex items-center gap-2"
+              >
+                <CalendarX className="h-4 w-4" />
+                Eliminar Rango
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -594,6 +705,123 @@ export default function WorkdaysPage() {
             <Button onClick={handleCreateWorkday} disabled={creatingWorkday}>
               {creatingWorkday ? 'Creando...' : 'Crear'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar Rango de Fechas</DialogTitle>
+            <DialogDescription>
+              Elimina múltiples días de trabajo dentro de un rango de fechas. Puedes filtrar por empleado y ubicación.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="bulkDeleteStartDate">Fecha Inicio *</Label>
+                <Input
+                  id="bulkDeleteStartDate"
+                  type="date"
+                  value={bulkDeleteStartDate}
+                  onChange={(e) => {
+                    setBulkDeleteStartDate(e.target.value)
+                    setBulkDeleteCount(null)
+                  }}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bulkDeleteEndDate">Fecha Fin *</Label>
+                <Input
+                  id="bulkDeleteEndDate"
+                  type="date"
+                  value={bulkDeleteEndDate}
+                  onChange={(e) => {
+                    setBulkDeleteEndDate(e.target.value)
+                    setBulkDeleteCount(null)
+                  }}
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="bulkDeleteEmployee">Empleado (opcional)</Label>
+                <Select
+                  value={bulkDeleteEmployeeId || "all"}
+                  onValueChange={(value) => {
+                    setBulkDeleteEmployeeId(value === "all" ? "" : value)
+                    setBulkDeleteCount(null)
+                  }}
+                >
+                  <SelectTrigger id="bulkDeleteEmployee">
+                    <SelectValue placeholder="Todos los empleados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los empleados</SelectItem>
+                    {employees.map((employee) => (
+                      <SelectItem key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bulkDeleteLocation">Ubicación (opcional)</Label>
+                <Select
+                  value={bulkDeleteLocationId || "all"}
+                  onValueChange={(value) => {
+                    setBulkDeleteLocationId(value === "all" ? "" : value)
+                    setBulkDeleteCount(null)
+                  }}
+                >
+                  <SelectTrigger id="bulkDeleteLocation">
+                    <SelectValue placeholder="Todas las ubicaciones" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las ubicaciones</SelectItem>
+                    {locations.map((location) => (
+                      <SelectItem key={location.id} value={location.id}>
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {bulkDeleteCount !== null && (
+              <div className={`p-3 rounded-md ${bulkDeleteCount > 0 ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800' : 'bg-gray-50 dark:bg-gray-800'}`}>
+                <p className="text-sm font-medium">
+                  {bulkDeleteCount > 0 
+                    ? `⚠️ Se eliminarán ${bulkDeleteCount} día(s) de trabajo`
+                    : 'No se encontraron días de trabajo en el rango especificado'}
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              onClick={handleCountBulkDelete}
+              disabled={!bulkDeleteStartDate || !bulkDeleteEndDate || countingBulk}
+            >
+              {countingBulk ? 'Contando...' : 'Contar Registros'}
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setBulkDeleteDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleBulkDelete}
+                disabled={!bulkDeleteStartDate || !bulkDeleteEndDate || deletingBulk || bulkDeleteCount === null || bulkDeleteCount === 0}
+              >
+                {deletingBulk ? 'Eliminando...' : 'Eliminar'}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
