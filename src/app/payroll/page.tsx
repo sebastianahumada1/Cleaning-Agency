@@ -347,6 +347,7 @@ export default function PayrollPage() {
               <thead>
                 <tr>
                   <th>Ubicación</th>
+                  <th>Agencia</th>
                   <th>Días Trabajados</th>
                   <th>Total Ganado</th>
                 </tr>
@@ -355,6 +356,7 @@ export default function PayrollPage() {
                 ${employeePayrolls.map(p => `
                   <tr>
                     <td>${p.location.name}</td>
+                    <td>${p.location.agency?.name || 'Sin agencia'}</td>
                     <td>${p.daysWorked}</td>
                     <td>$${Number(p.totalEarned).toFixed(2)}</td>
                   </tr>
