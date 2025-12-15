@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Pencil, Trash2, Plus, CalendarX } from 'lucide-react'
-import { getWeekdayUTC } from '@/lib/date-utils'
+import { getWeekdayUTC, formatDateUTC, formatDateUTCSpanish } from '@/lib/date-utils'
 
 interface Workday {
   id: string
@@ -511,12 +511,7 @@ export default function WorkdaysPage() {
               <TableBody>
                 {workdays.map((workday) => (
                   <TableRow key={workday.id}>
-                    <TableCell>{new Date(workday.date).toLocaleDateString('es-ES', { 
-                      weekday: 'short', 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric' 
-                    })}</TableCell>
+                    <TableCell>{formatDateUTCSpanish(new Date(workday.date))}</TableCell>
                     <TableCell className="font-medium">{workday.employee.name}</TableCell>
                     <TableCell>{workday.location.name}</TableCell>
                     <TableCell className="text-right font-medium">
@@ -575,7 +570,7 @@ export default function WorkdaysPage() {
               {editingWorkday && (
                 <>
                   {editingWorkday.employee.name} - {editingWorkday.location.name} -{' '}
-                  {new Date(editingWorkday.date).toLocaleDateString('es-ES')}
+                  {formatDateUTC(new Date(editingWorkday.date)).split('-').reverse().join('/')}
                 </>
               )}
             </DialogDescription>
@@ -613,7 +608,7 @@ export default function WorkdaysPage() {
                   <strong>{workdayToDelete.employee.name}</strong> en{' '}
                   <strong>{workdayToDelete.location.name}</strong> del{' '}
                   <strong>
-                    {new Date(workdayToDelete.date).toLocaleDateString('es-ES')}
+                    {formatDateUTC(new Date(workdayToDelete.date)).split('-').reverse().join('/')}
                   </strong>
                   ? Esta acción no se puede deshacer.
                 </>

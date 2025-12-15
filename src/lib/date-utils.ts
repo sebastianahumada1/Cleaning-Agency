@@ -80,3 +80,18 @@ export function formatDateUTC(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+/**
+ * Formats a date to Spanish locale string using UTC (e.g., "vie, 6 dic 2025")
+ * @param date - Date object
+ * @returns Formatted date string in Spanish
+ */
+export function formatDateUTCSpanish(date: Date): string {
+  const weekdayNames = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+  const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  const weekday = weekdayNames[date.getUTCDay()]
+  const day = date.getUTCDate()
+  const month = monthNames[date.getUTCMonth()]
+  const year = date.getUTCFullYear()
+  return `${weekday}, ${day} ${month} ${year}`
+}
+
