@@ -6,8 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
 import html2canvas from 'html2canvas'
 import JSZip from 'jszip'
+import { ChevronDown } from 'lucide-react'
 
 interface Payroll {
   id: string
@@ -17,7 +21,7 @@ interface Payroll {
   daysWorked: number
   totalEarned: number
   employee: { name: string }
-  location: { name: string }
+  location: { name: string; agency: { id: string; name: string } | null }
   payperiod: { startDate: string; endDate: string }
 }
 
@@ -32,23 +36,34 @@ interface Employee {
   name: string
 }
 
+interface Agency {
+  id: string
+  name: string
+}
+
 export default function PayrollPage() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([])
   const [payPeriods, setPayPeriods] = useState<PayPeriod[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [agencies, setAgencies] = useState<Agency[]>([])
   const [selectedPeriod, setSelectedPeriod] = useState<string>('')
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('')
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
+  const [selectedAgencyIds, setSelectedAgencyIds] = useState<string[]>([])
+  const [customStartDate, setCustomStartDate] = useState<string>('')
+  const [customEndDate, setCustomEndDate] = useState<string>('')
+  const [useCustomDates, setUseCustomDates] = useState(false)
   const [loading, setLoading] = useState(true)
   const [exportingImages, setExportingImages] = useState(false)
 
   useEffect(() => {
     fetchPayPeriods()
     fetchEmployees()
+    fetchAgencies()
   }, [])
 
   useEffect(() => {
-    fetchPayrolls(selectedPeriod, selectedEmployeeId)
-  }, [selectedPeriod, selectedEmployeeId])
+    fetchPayrolls()
+  }, [selectedPeriod, selectedEmployeeIds, selectedAgencyIds, customStartDate, customEndDate, useCustomDates])
 
   async function fetchPayPeriods() {
     try {
@@ -76,11 +91,36 @@ export default function PayrollPage() {
     }
   }
 
-  async function fetchPayrolls(payPeriodId?: string, employeeId?: string) {
+  async function fetchAgencies() {
     try {
+      const res = await fetch('/api/agencies')
+      const data = await res.json()
+      setAgencies(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Payroll: Error fetching agencies:', error)
+      setAgencies([])
+    }
+  }
+
+  async function fetchPayrolls() {
+    try {
+      setLoading(true)
       const params = new URLSearchParams()
-      if (payPeriodId) params.append('payPeriodId', payPeriodId)
-      if (employeeId) params.append('employeeId', employeeId)
+      
+      if (useCustomDates && customStartDate && customEndDate) {
+        params.append('startDate', customStartDate)
+        params.append('endDate', customEndDate)
+      } else if (selectedPeriod) {
+        params.append('payPeriodId', selectedPeriod)
+      }
+      
+      if (selectedEmployeeIds.length > 0) {
+        params.append('employeeIds', selectedEmployeeIds.join(','))
+      }
+      
+      if (selectedAgencyIds.length > 0) {
+        params.append('agencyIds', selectedAgencyIds.join(','))
+      }
 
       const url = params.toString() ? `/api/payroll?${params.toString()}` : '/api/payroll'
       const res = await fetch(url)
@@ -95,18 +135,35 @@ export default function PayrollPage() {
   }
 
   async function handleExport() {
-    if (!selectedPeriod) {
-      alert('Por favor selecciona un período de pago primero')
+    const periodId = useCustomDates ? null : selectedPeriod
+    if (!periodId && (!useCustomDates || !customStartDate || !customEndDate)) {
+      alert('Por favor selecciona un período de pago o un rango de fechas primero')
       return
     }
 
     try {
-      const res = await fetch(`/api/payroll/export?payPeriodId=${selectedPeriod}&format=csv`)
+      const params = new URLSearchParams()
+      if (periodId) {
+        params.append('payPeriodId', periodId)
+      } else {
+        params.append('startDate', customStartDate)
+        params.append('endDate', customEndDate)
+      }
+      if (selectedEmployeeIds.length > 0) {
+        params.append('employeeIds', selectedEmployeeIds.join(','))
+      }
+      if (selectedAgencyIds.length > 0) {
+        params.append('agencyIds', selectedAgencyIds.join(','))
+      }
+      params.append('format', 'csv')
+
+      const res = await fetch(`/api/payroll/export?${params.toString()}`)
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `payroll-${selectedPeriod}.csv`
+      const filename = periodId ? `payroll-${periodId}.csv` : `payroll-${customStartDate}_${customEndDate}.csv`
+      a.download = filename
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -117,8 +174,9 @@ export default function PayrollPage() {
   }
 
   async function handleExportImages() {
-    if (!selectedPeriod) {
-      alert('Por favor selecciona un período de pago primero')
+    const periodId = useCustomDates ? null : selectedPeriod
+    if (!periodId && (!useCustomDates || !customStartDate || !customEndDate)) {
+      alert('Por favor selecciona un período de pago o un rango de fechas primero')
       return
     }
 
@@ -130,11 +188,13 @@ export default function PayrollPage() {
     setExportingImages(true)
     try {
       const zip = new JSZip()
-      const selectedPeriodData = payPeriods.find(p => p.id === selectedPeriod)
+      const selectedPeriodData = periodId ? payPeriods.find(p => p.id === periodId) : null
       // Simple period label for folder name
       const periodLabel = selectedPeriodData
         ? `${new Date(selectedPeriodData.startDate).toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-')}_${new Date(selectedPeriodData.endDate).toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-')}`
-        : selectedPeriod
+        : useCustomDates && customStartDate && customEndDate
+        ? `${customStartDate}_${customEndDate}`
+        : 'periodo'
 
       // Group payrolls by employee
       const payrollsByEmployee = payrollsArray.reduce((acc, payroll) => {
@@ -147,6 +207,12 @@ export default function PayrollPage() {
       }, {} as Record<string, Payroll[]>)
 
       // Generate image for each employee
+      const periodLabelForExport = selectedPeriodData
+        ? `${new Date(selectedPeriodData.startDate).toLocaleDateString('es-ES')} - ${new Date(selectedPeriodData.endDate).toLocaleDateString('es-ES')}`
+        : useCustomDates && customStartDate && customEndDate
+        ? `${new Date(customStartDate).toLocaleDateString('es-ES')} - ${new Date(customEndDate).toLocaleDateString('es-ES')}`
+        : 'N/A'
+
       const imagePromises = Object.entries(payrollsByEmployee).map(async ([employeeName, employeePayrolls]) => {
         const totalDays = employeePayrolls.reduce((sum, p) => sum + p.daysWorked, 0)
         const totalEarned = employeePayrolls.reduce((sum, p) => sum + Number(p.totalEarned), 0)
@@ -240,7 +306,7 @@ export default function PayrollPage() {
           <body>
             <div class="header">
               <h1>NÓMINA DE PAGO</h1>
-              <h2>Período: ${selectedPeriodData ? `${new Date(selectedPeriodData.startDate).toLocaleDateString('es-ES')} - ${new Date(selectedPeriodData.endDate).toLocaleDateString('es-ES')}` : 'N/A'}</h2>
+              <h2>Período: ${periodLabelForExport}</h2>
             </div>
             
             <div class="info-section">
@@ -250,7 +316,7 @@ export default function PayrollPage() {
               </div>
               <div class="info-row">
                 <span class="info-label">Período:</span>
-                <span>${selectedPeriodData ? `${new Date(selectedPeriodData.startDate).toLocaleDateString('es-ES')} - ${new Date(selectedPeriodData.endDate).toLocaleDateString('es-ES')}` : 'N/A'}</span>
+                <span>${periodLabelForExport}</span>
               </div>
             </div>
 
@@ -424,56 +490,186 @@ export default function PayrollPage() {
       <Card>
         <CardHeader>
           <CardTitle>Filtros</CardTitle>
-          <CardDescription>Selecciona el período de pago y empleado</CardDescription>
+          <CardDescription>Filtra los reportes por período, fechas, empleados y agencias</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="payPeriod">Período de Pago</Label>
-              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                <SelectTrigger id="payPeriod">
-                  <SelectValue placeholder="Selecciona un período" />
-                </SelectTrigger>
-                <SelectContent>
-                  {payPeriods.map((period) => (
-                    <SelectItem key={period.id} value={period.id}>
-                      {new Date(period.startDate).toLocaleDateString('es-ES')} - {new Date(period.endDate).toLocaleDateString('es-ES')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="employee">Empleado</Label>
-              <Select
-                value={selectedEmployeeId}
-                onValueChange={(value) => setSelectedEmployeeId(value === 'all' ? '' : value)}
-              >
-                <SelectTrigger id="employee">
-                  <SelectValue placeholder="Todos los empleados" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los empleados</SelectItem>
-                  {employees.map((employee) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 flex items-end gap-2">
-              <Button onClick={handleExport} disabled={!selectedPeriod} className="flex-1">
-                Exportar CSV
-              </Button>
-              <Button 
-                onClick={handleExportImages} 
-                disabled={!selectedPeriod || exportingImages || payrollsArray.length === 0} 
-                variant="outline"
-                className="flex-1"
-              >
-                {exportingImages ? 'Generando...' : 'Exportar Imágenes'}
-              </Button>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Rango de Fechas</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="useCustomDates"
+                    checked={useCustomDates}
+                    onCheckedChange={(checked: boolean) => {
+                      setUseCustomDates(checked)
+                      if (checked) setSelectedPeriod('')
+                    }}
+                  />
+                  <Label htmlFor="useCustomDates" className="font-normal cursor-pointer">
+                    Usar fechas personalizadas
+                  </Label>
+                </div>
+                {useCustomDates ? (
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <Input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomStartDate(e.target.value)}
+                      placeholder="Fecha inicio"
+                    />
+                    <Input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomEndDate(e.target.value)}
+                      placeholder="Fecha fin"
+                    />
+                  </div>
+                ) : (
+                  <Select 
+                    value={selectedPeriod || "none"} 
+                    onValueChange={(value) => {
+                      if (value !== "none") {
+                        setSelectedPeriod(value)
+                      } else {
+                        setSelectedPeriod('')
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un período" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Todos los períodos</SelectItem>
+                      {payPeriods.map((period) => (
+                        <SelectItem key={period.id} value={period.id}>
+                          {new Date(period.startDate).toLocaleDateString('es-ES')} - {new Date(period.endDate).toLocaleDateString('es-ES')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Empleados</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between">
+                      {selectedEmployeeIds.length === 0
+                        ? 'Todos los empleados'
+                        : `${selectedEmployeeIds.length} empleado${selectedEmployeeIds.length > 1 ? 's' : ''} seleccionado${selectedEmployeeIds.length > 1 ? 's' : ''}`}
+                      <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0">
+                    <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="font-semibold">Seleccionar empleados</Label>
+                        {selectedEmployeeIds.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedEmployeeIds([])}
+                            className="h-6 px-2 text-xs"
+                          >
+                            Limpiar
+                          </Button>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        {employees.map((employee) => (
+                          <div key={employee.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`emp-${employee.id}`}
+                              checked={selectedEmployeeIds.includes(employee.id)}
+                              onCheckedChange={(checked: boolean) => {
+                                if (checked) {
+                                  setSelectedEmployeeIds([...selectedEmployeeIds, employee.id])
+                                } else {
+                                  setSelectedEmployeeIds(selectedEmployeeIds.filter(id => id !== employee.id))
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`emp-${employee.id}`} className="font-normal cursor-pointer flex-1">
+                              {employee.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Agencias</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between">
+                      {selectedAgencyIds.length === 0
+                        ? 'Todas las agencias'
+                        : `${selectedAgencyIds.length} agencia${selectedAgencyIds.length > 1 ? 's' : ''} seleccionada${selectedAgencyIds.length > 1 ? 's' : ''}`}
+                      <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0">
+                    <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="font-semibold">Seleccionar agencias</Label>
+                        {selectedAgencyIds.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedAgencyIds([])}
+                            className="h-6 px-2 text-xs"
+                          >
+                            Limpiar
+                          </Button>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        {agencies.map((agency) => (
+                          <div key={agency.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`agency-${agency.id}`}
+                              checked={selectedAgencyIds.includes(agency.id)}
+                              onCheckedChange={(checked: boolean) => {
+                                if (checked) {
+                                  setSelectedAgencyIds([...selectedAgencyIds, agency.id])
+                                } else {
+                                  setSelectedAgencyIds(selectedAgencyIds.filter(id => id !== agency.id))
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`agency-${agency.id}`} className="font-normal cursor-pointer flex-1">
+                              {agency.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-2 flex items-end gap-2">
+                <Button 
+                  onClick={handleExport} 
+                  disabled={!selectedPeriod && (!useCustomDates || !customStartDate || !customEndDate)} 
+                  className="flex-1"
+                >
+                  Exportar CSV
+                </Button>
+                <Button 
+                  onClick={handleExportImages} 
+                  disabled={(!selectedPeriod && (!useCustomDates || !customStartDate || !customEndDate)) || exportingImages || payrollsArray.length === 0} 
+                  variant="outline"
+                  className="flex-1"
+                >
+                  {exportingImages ? 'Generando...' : 'Exportar Imágenes'}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
