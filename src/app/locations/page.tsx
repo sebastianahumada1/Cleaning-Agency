@@ -280,36 +280,6 @@ export default function LocationsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Dialog open={agencyDialogOpen} onOpenChange={setAgencyDialogOpen}>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Nueva Agencia</DialogTitle>
-                      <DialogDescription>
-                        Agrega una nueva agencia al sistema
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleCreateAgency}>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="agencyName">Nombre de la Agencia *</Label>
-                          <Input
-                            id="agencyName"
-                            value={newAgencyName}
-                            onChange={(e) => setNewAgencyName(e.target.value)}
-                            placeholder="Ej: Agencia ABC"
-                            required
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setAgencyDialogOpen(false)}>
-                          Cancelar
-                        </Button>
-                        <Button type="submit">Crear Agencia</Button>
-                      </DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
                  <div className="space-y-2">
                    <Label htmlFor="pricePerDay">Precio por Día ($) *</Label>
                    <Input
@@ -417,6 +387,36 @@ export default function LocationsPage() {
               </div>
               <DialogFooter>
                 <Button type="submit">{editingLocation ? 'Actualizar' : 'Crear'}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={agencyDialogOpen} onOpenChange={setAgencyDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nueva Agencia</DialogTitle>
+              <DialogDescription>
+                Agrega una nueva agencia al sistema
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateAgency}>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="agencyName">Nombre de la Agencia *</Label>
+                  <Input
+                    id="agencyName"
+                    value={newAgencyName}
+                    onChange={(e) => setNewAgencyName(e.target.value)}
+                    placeholder="Ej: Agencia ABC"
+                    required
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setAgencyDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit">Crear Agencia</Button>
               </DialogFooter>
             </form>
           </DialogContent>
