@@ -22,9 +22,18 @@ model Employee {
   payrolls  Payroll[]
 }
 
+model Agency {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  locations Location[]
+}
+
 model Location {
   id           String    @id @default(uuid())
   name         String
+  agencyId     String?
   pricePerDay  Decimal   // Precio por defecto (fallback)
   pricePerWeek Decimal?
   hoursPerDay  Decimal?
@@ -39,9 +48,12 @@ model Location {
   notes        String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  agency       Agency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
   workdays     Workday[]
   schedules    Schedule[]
   payrolls     Payroll[]
+
+  @@index([agencyId])
 }
 
 model Schedule {

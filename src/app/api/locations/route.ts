@@ -6,6 +6,9 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     const locations = await prisma.location.findMany({
+      include: {
+        agency: true,
+      },
       orderBy: { name: 'asc' },
     })
     return NextResponse.json(locations)
@@ -23,6 +26,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { 
       name, 
+      agencyId,
       pricePerDay, 
       pricePerWeek, 
       hoursPerDay, 
@@ -46,6 +50,7 @@ export async function POST(request: NextRequest) {
     const location = await prisma.location.create({
       data: {
         name,
+        agencyId: agencyId || null,
         pricePerDay: parseFloat(pricePerDay),
         pricePerWeek: pricePerWeek ? parseFloat(pricePerWeek) : null,
         hoursPerDay: hoursPerDay ? parseFloat(hoursPerDay) : null,
@@ -57,6 +62,9 @@ export async function POST(request: NextRequest) {
         priceSaturday: priceSaturday ? parseFloat(priceSaturday) : null,
         priceSunday: priceSunday ? parseFloat(priceSunday) : null,
         notes: notes || null,
+      },
+      include: {
+        agency: true,
       },
     })
 

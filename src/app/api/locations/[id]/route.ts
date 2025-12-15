@@ -12,6 +12,7 @@ export async function GET(
     const location = await prisma.location.findUnique({
       where: { id },
       include: {
+        agency: true,
         schedules: {
           include: { employee: true },
         },
@@ -49,6 +50,7 @@ export async function PUT(
     const body = await request.json()
     const { 
       name, 
+      agencyId,
       pricePerDay, 
       pricePerWeek, 
       hoursPerDay, 
@@ -66,6 +68,7 @@ export async function PUT(
       where: { id },
       data: {
         ...(name && { name }),
+        ...(agencyId !== undefined && { agencyId: agencyId || null }),
         ...(pricePerDay && { pricePerDay: parseFloat(pricePerDay) }),
         ...(pricePerWeek !== undefined && {
           pricePerWeek: pricePerWeek ? parseFloat(pricePerWeek) : null,
@@ -95,6 +98,9 @@ export async function PUT(
           priceSunday: priceSunday ? parseFloat(priceSunday) : null,
         }),
         ...(notes !== undefined && { notes }),
+      },
+      include: {
+        agency: true,
       },
     })
 

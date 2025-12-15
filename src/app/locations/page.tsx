@@ -7,10 +7,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Plus } from 'lucide-react'
+
+interface Agency {
+  id: string
+  name: string
+}
 
 interface Location {
   id: string
   name: string
+  agencyId: string | null
+  agency: Agency | null
   pricePerDay: number
   pricePerWeek: number | null
   hoursPerDay: number | null
@@ -26,11 +35,15 @@ interface Location {
 
 export default function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([])
+  const [agencies, setAgencies] = useState<Agency[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [agencyDialogOpen, setAgencyDialogOpen] = useState(false)
+  const [newAgencyName, setNewAgencyName] = useState('')
   const [editingLocation, setEditingLocation] = useState<Location | null>(null)
   const [formData, setFormData] = useState({
     name: '',
+    agencyId: '',
     pricePerDay: '',
     pricePerWeek: '',
     hoursPerDay: '',
@@ -46,7 +59,46 @@ export default function LocationsPage() {
 
   useEffect(() => {
     fetchLocations()
+    fetchAgencies()
   }, [])
+
+  async function fetchAgencies() {
+    try {
+      const res = await fetch('/api/agencies')
+      const data = await res.json()
+      setAgencies(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Payroll: Error fetching agencies:', error)
+      setAgencies([])
+    }
+  }
+
+  async function handleCreateAgency(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newAgencyName.trim()) return
+
+    try {
+      const res = await fetch('/api/agencies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newAgencyName.trim() }),
+      })
+
+      if (res.ok) {
+        const newAgency = await res.json()
+        setAgencies([...agencies, newAgency])
+        setFormData({ ...formData, agencyId: newAgency.id })
+        setNewAgencyName('')
+        setAgencyDialogOpen(false)
+      } else {
+        const error = await res.json()
+        alert(error.error || 'Error al crear la agencia')
+      }
+    } catch (error) {
+      console.error('Payroll: Error creating agency:', error)
+      alert('Error al crear la agencia')
+    }
+  }
 
   async function fetchLocations() {
     try {
@@ -72,6 +124,7 @@ export default function LocationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name,
+          agencyId: formData.agencyId || null,
           pricePerDay: formData.pricePerDay,
           pricePerWeek: formData.pricePerWeek || null,
           hoursPerDay: formData.hoursPerDay || null,
@@ -91,6 +144,7 @@ export default function LocationsPage() {
         setEditingLocation(null)
         setFormData({ 
           name: '', 
+          agencyId: '',
           pricePerDay: '', 
           pricePerWeek: '', 
           hoursPerDay: '', 
@@ -127,6 +181,7 @@ export default function LocationsPage() {
     setEditingLocation(location)
     setFormData({
       name: location.name,
+      agencyId: location.agencyId || '',
       pricePerDay: location.pricePerDay.toString(),
       pricePerWeek: location.pricePerWeek?.toString() || '',
       hoursPerDay: location.hoursPerDay?.toString() || '',
@@ -159,6 +214,7 @@ export default function LocationsPage() {
               setEditingLocation(null)
               setFormData({ 
                 name: '', 
+                agencyId: '',
                 pricePerDay: '', 
                 pricePerWeek: '', 
                 hoursPerDay: '', 
@@ -193,6 +249,67 @@ export default function LocationsPage() {
                     required
                   />
                 </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="agencyId">Agencia</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAgencyDialogOpen(true)}
+                      className="h-8 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Nueva Agencia
+                    </Button>
+                  </div>
+                  <Select
+                    value={formData.agencyId}
+                    onValueChange={(value) => setFormData({ ...formData, agencyId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar agencia (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sin agencia</SelectItem>
+                      {agencies.map((agency) => (
+                        <SelectItem key={agency.id} value={agency.id}>
+                          {agency.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Dialog open={agencyDialogOpen} onOpenChange={setAgencyDialogOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Nueva Agencia</DialogTitle>
+                      <DialogDescription>
+                        Agrega una nueva agencia al sistema
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleCreateAgency}>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="agencyName">Nombre de la Agencia *</Label>
+                          <Input
+                            id="agencyName"
+                            value={newAgencyName}
+                            onChange={(e) => setNewAgencyName(e.target.value)}
+                            placeholder="Ej: Agencia ABC"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setAgencyDialogOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button type="submit">Crear Agencia</Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
                  <div className="space-y-2">
                    <Label htmlFor="pricePerDay">Precio por Día ($) *</Label>
                    <Input
@@ -317,6 +434,7 @@ export default function LocationsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
+                  <TableHead>Agencia</TableHead>
                   <TableHead>Por Defecto</TableHead>
                   <TableHead className="text-center">Lun</TableHead>
                   <TableHead className="text-center">Mar</TableHead>
@@ -332,6 +450,7 @@ export default function LocationsPage() {
                 {locations.map((location) => (
                   <TableRow key={location.id}>
                     <TableCell className="font-medium">{location.name}</TableCell>
+                    <TableCell>{location.agency?.name || '-'}</TableCell>
                     <TableCell>${Number(location.pricePerDay).toFixed(2)}</TableCell>
                     <TableCell className="text-center">
                       {location.priceMonday 
