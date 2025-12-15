@@ -19,14 +19,20 @@ export async function GET(request: NextRequest) {
       where.date = {}
       if (startDate && endDate) {
         const { start, end } = createDateRange(startDate, endDate)
+        // Use gte (greater than or equal) for start and lt (less than) for end
+        // This ensures we include all dates from the end date, even if stored with time components
         where.date.gte = start
-        where.date.lte = end
+        where.date.lt = end
+        console.log(`Workdays: Filtering dates - Start: ${startDate} (>= ${start.toISOString()}), End: ${endDate} (< ${end.toISOString()})`)
       } else if (startDate) {
         const { start } = createDateRange(startDate, startDate)
         where.date.gte = start
+        console.log(`Workdays: Filtering dates - Start: ${startDate} (>= ${start.toISOString()})`)
       } else if (endDate) {
-        const { end } = createDateRange(endDate, endDate)
-        where.date.lte = end
+        const { start, end } = createDateRange(endDate, endDate)
+        // For end date only, use lt (less than) to include the entire day
+        where.date.lt = end
+        console.log(`Workdays: Filtering dates - End: ${endDate} (< ${end.toISOString()})`)
       }
     }
 

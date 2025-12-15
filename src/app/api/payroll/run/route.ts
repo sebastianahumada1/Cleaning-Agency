@@ -40,11 +40,12 @@ export async function POST(request: NextRequest) {
     console.log(`Payroll: Pay period dates - Start: ${new Date(payPeriod.startDate).toISOString()}, End: ${new Date(payPeriod.endDate).toISOString()}`)
 
     // Get all workdays in the period
+    // Use lt (less than) since endDate is now exclusive (start of next day)
     const workdays = await prisma.workday.findMany({
       where: {
         date: {
           gte: startDate,
-          lte: endDate,
+          lt: endDate,
         },
         attended: true,
       },
@@ -63,21 +64,9 @@ export async function POST(request: NextRequest) {
     
     // Log workdays count by employee and location for debugging
     const workdayCounts = new Map<string, number>()
-    const locationPrices = new Map<string, any>()
     for (const workday of workdays) {
       const key = `${workday.employee.name} @ ${workday.location.name}`
       workdayCounts.set(key, (workdayCounts.get(key) || 0) + 1)
-      
-      // Log location prices for debugging (first time we see each location)
-      const locationKey = workday.location.name
-      if (!locationPrices.has(locationKey)) {
-        locationPrices.set(locationKey, workday.location)
-        console.log(`Payroll: Location "${locationKey}" prices:`, {
-          pricePerDay: workday.location.pricePerDay,
-          priceSaturday: workday.location.priceSaturday,
-          priceSunday: workday.location.priceSunday,
-        })
-      }
     }
     for (const [key, count] of workdayCounts.entries()) {
       console.log(`Payroll: ${key}: ${count} workdays`)
@@ -88,62 +77,41 @@ export async function POST(request: NextRequest) {
       // Use UTC weekday calculation
       const weekday = getWeekdayUTC(date)
       
+      // Debug: log weekday calculation for Saturday dates
       const dateStr = date.toISOString().split('T')[0]
-      const weekdayNames = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
-      
-      // Helper to safely convert Decimal to number, checking for null/undefined
-      // Prisma Decimal can be an object with a toString() method or a number
-      const safeNumber = (value: any): number | null => {
-        if (value === null || value === undefined) return null
-        // Handle Prisma Decimal objects which have toString() method
-        if (typeof value === 'object' && typeof value.toString === 'function') {
-          const num = parseFloat(value.toString())
-          return isNaN(num) || num === 0 ? null : num
-        }
-        const num = Number(value)
-        return isNaN(num) || num === 0 ? null : num
+      if (weekday === 6 || weekday === 7) {
+        const weekdayNames = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+        console.log(`Payroll: Date ${dateStr} -> Weekday: ${weekday} (${weekdayNames[weekday]})`)
       }
       
       // Check if there's a specific price for this weekday
       let price: number | null = null
       switch (weekday) {
         case 1: // Monday
-          price = safeNumber(location.priceMonday)
+          price = location.priceMonday ? Number(location.priceMonday) : null
           break
         case 2: // Tuesday
-          price = safeNumber(location.priceTuesday)
+          price = location.priceTuesday ? Number(location.priceTuesday) : null
           break
         case 3: // Wednesday
-          price = safeNumber(location.priceWednesday)
+          price = location.priceWednesday ? Number(location.priceWednesday) : null
           break
         case 4: // Thursday
-          price = safeNumber(location.priceThursday)
+          price = location.priceThursday ? Number(location.priceThursday) : null
           break
         case 5: // Friday
-          price = safeNumber(location.priceFriday)
+          price = location.priceFriday ? Number(location.priceFriday) : null
           break
         case 6: // Saturday
-          price = safeNumber(location.priceSaturday)
+          price = location.priceSaturday ? Number(location.priceSaturday) : null
           break
         case 7: // Sunday
-          price = safeNumber(location.priceSunday)
+          price = location.priceSunday ? Number(location.priceSunday) : null
           break
-      }
-      
-      const basePrice = Number(location.pricePerDay)
-      const finalPrice = price !== null ? price : basePrice
-      
-      // Debug logging for Saturday dates to verify pricing
-      if (weekday === 6) {
-        console.log(`Payroll: ${dateStr} (${weekdayNames[weekday]}) - ${location.name}:`)
-        console.log(`  priceSaturday raw:`, location.priceSaturday)
-        console.log(`  priceSaturday converted:`, price)
-        console.log(`  pricePerDay:`, basePrice)
-        console.log(`  Final price used:`, finalPrice)
       }
       
       // Use specific price if available, otherwise use default pricePerDay
-      return finalPrice
+      return price !== null ? price : Number(location.pricePerDay)
     }
 
     // Group by employee and location, tracking total earned (not just days)

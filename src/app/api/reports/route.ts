@@ -15,13 +15,13 @@ export async function GET(request: NextRequest) {
       if (startDate && endDate) {
         const { start, end } = createDateRange(startDate, endDate)
         where.startDate = { gte: start }
-        where.endDate = { lte: end }
+        where.endDate = { lt: end } // Use lt since end is exclusive (start of next day)
       } else if (startDate) {
         const { start } = createDateRange(startDate, startDate)
         where.startDate = { gte: start }
       } else if (endDate) {
-        const { end } = createDateRange(endDate, endDate)
-        where.endDate = { lte: end }
+        const { start, end } = createDateRange(endDate, endDate)
+        where.endDate = { lt: end } // Use lt since end is exclusive
       }
     }
 

@@ -22,17 +22,22 @@ export function normalizeDateToUTC(date: string | Date): Date {
 
 /**
  * Creates a date range for filtering, ensuring start date is at UTC midnight
- * and end date is at UTC 23:59:59.999
+ * and end date includes the entire day by using the start of the next day (exclusive)
+ * This ensures we capture all dates that fall within the date range, even if
+ * they were stored with different time components
  * @param startDate - Start date string (YYYY-MM-DD) or Date object
  * @param endDate - End date string (YYYY-MM-DD) or Date object
- * @returns Object with normalized start and end dates
+ * @returns Object with normalized start and end dates (end is exclusive - start of next day)
  */
 export function createDateRange(startDate: string | Date, endDate: string | Date): { start: Date; end: Date } {
   const start = normalizeDateToUTC(startDate)
   const end = normalizeDateToUTC(endDate)
   
-  // Set end date to end of day in UTC
-  end.setUTCHours(23, 59, 59, 999)
+  // Instead of setting end to 23:59:59.999, we set it to the start of the next day
+  // This way we can use `lt` (less than) instead of `lte` (less than or equal)
+  // which ensures we include ALL dates from the end date, regardless of time component
+  end.setUTCDate(end.getUTCDate() + 1)
+  end.setUTCHours(0, 0, 0, 0)
   
   return { start, end }
 }

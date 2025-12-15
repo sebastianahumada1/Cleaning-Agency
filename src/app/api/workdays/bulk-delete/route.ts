@@ -24,7 +24,7 @@ export async function DELETE(request: NextRequest) {
     const where: any = {
       date: {
         gte: start,
-        lte: end,
+        lt: end, // Use lt (less than) since end is now exclusive (start of next day)
       },
     }
 
