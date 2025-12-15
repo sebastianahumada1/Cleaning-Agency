@@ -32,19 +32,38 @@ export async function POST(request: NextRequest) {
       where: { payPeriodId },
     })
 
+    // Normalize pay period dates to ensure we include all workdays
+    // Set startDate to beginning of day (00:00:00)
+    const startDate = new Date(payPeriod.startDate)
+    startDate.setHours(0, 0, 0, 0)
+    
+    // Set endDate to end of day (23:59:59.999) to include all workdays on the last day
+    const endDate = new Date(payPeriod.endDate)
+    endDate.setHours(23, 59, 59, 999)
+
+    console.log(`Payroll: Processing period from ${startDate.toISOString()} to ${endDate.toISOString()}`)
+
     // Get all workdays in the period
     const workdays = await prisma.workday.findMany({
       where: {
         date: {
-          gte: payPeriod.startDate,
-          lte: payPeriod.endDate,
+          gte: startDate,
+          lte: endDate,
         },
         attended: true,
       },
       include: {
         location: true,
+        employee: true,
       },
+      orderBy: [
+        { employee: { name: 'asc' } },
+        { location: { name: 'asc' } },
+        { date: 'asc' },
+      ],
     })
+
+    console.log(`Payroll: Found ${workdays.length} workdays for period`)
 
     // Helper function to normalize date to local timezone (midnight) to avoid timezone issues
     function normalizeDate(date: Date): Date {
@@ -98,6 +117,11 @@ export async function POST(request: NextRequest) {
       
       const workdayDate = new Date(workday.date)
       const priceForDay = getPriceForDay(workday.location, workdayDate)
+      
+      // Debug logging for first few workdays
+      if (workdays.indexOf(workday) < 10) {
+        console.log(`Payroll: Workday ${workdayDate.toISOString().split('T')[0]} - ${workday.employee.name} @ ${workday.location.name} - Price: $${priceForDay}`)
+      }
 
       if (existing) {
         existing.daysWorked += 1
@@ -111,6 +135,8 @@ export async function POST(request: NextRequest) {
         })
       }
     }
+    
+    console.log(`Payroll: Grouped into ${payrollMap.size} payroll entries`)
 
     // Create payroll records
     const payrolls = []
