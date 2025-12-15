@@ -37,13 +37,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const normalizedStartDate = normalizeDateToUTC(startDate)
+    const normalizedEndDate = normalizeDateToUTC(endDate)
+    
+    console.log(`PayPeriod: Creating period - Input: ${startDate} -> ${endDate}, Normalized: ${normalizedStartDate.toISOString()} -> ${normalizedEndDate.toISOString()}`)
+    
     const payPeriod = await prisma.payPeriod.create({
       data: {
-        startDate: normalizeDateToUTC(startDate),
-        endDate: normalizeDateToUTC(endDate),
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate,
       },
     })
 
+    console.log(`PayPeriod: Created - Stored: ${payPeriod.startDate.toISOString()} -> ${payPeriod.endDate.toISOString()}`)
     return NextResponse.json(payPeriod, { status: 201 })
   } catch (error) {
     console.error('Payroll: Error creating pay period:', error)

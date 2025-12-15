@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatDateUTC } from '@/lib/date-utils'
 
 interface PayPeriod {
   id: string
@@ -165,11 +166,15 @@ export default function PayPeriodsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payPeriods.map((period) => (
-                <TableRow key={period.id}>
-                  <TableCell>{new Date(period.startDate).toLocaleDateString('es-ES')}</TableCell>
-                  <TableCell>{new Date(period.endDate).toLocaleDateString('es-ES')}</TableCell>
-                  <TableCell>{period._count.payrolls}</TableCell>
+              {payPeriods.map((period) => {
+                // Format dates using UTC to avoid timezone issues
+                const startDateStr = formatDateUTC(new Date(period.startDate)).split('-').reverse().join('/')
+                const endDateStr = formatDateUTC(new Date(period.endDate)).split('-').reverse().join('/')
+                return (
+                  <TableRow key={period.id}>
+                    <TableCell>{startDateStr}</TableCell>
+                    <TableCell>{endDateStr}</TableCell>
+                    <TableCell>{period._count.payrolls}</TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="default"
@@ -188,7 +193,8 @@ export default function PayPeriodsPage() {
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>
