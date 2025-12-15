@@ -177,8 +177,14 @@ export async function POST(request: NextRequest) {
       },
       payrolls,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Payroll: Error running payroll:', error)
+    if (error.code === 'P1002') {
+      return NextResponse.json(
+        { error: 'Database connection error. Please try again.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: 'Failed to run payroll' },
       { status: 500 }

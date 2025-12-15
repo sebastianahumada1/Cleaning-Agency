@@ -80,13 +80,17 @@ export default function PayPeriodsPage() {
         body: JSON.stringify({ payPeriodId }),
       })
 
+      const data = await res.json()
+
       if (res.ok) {
-        const data = await res.json()
         alert(`¡Nómina completada! ${data.summary.totalPayrolls} registros creados. Total: $${data.summary.totalEarned.toFixed(2)}`)
         fetchPayPeriods()
+      } else {
+        alert(data.error || 'Error al ejecutar la nómina. Por favor intenta de nuevo.')
       }
     } catch (error) {
       console.error('Payroll: Error ejecutando nómina:', error)
+      alert('Error de conexión. Por favor verifica tu conexión e intenta de nuevo.')
     }
   }
 
