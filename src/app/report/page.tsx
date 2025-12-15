@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Progress } from '@/components/ui/progress'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ChevronDown } from 'lucide-react'
 
 interface Schedule {
   id: string
@@ -58,6 +61,16 @@ interface EmployeeReport {
   total: number
 }
 
+interface Employee {
+  id: string
+  name: string
+}
+
+interface Agency {
+  id: string
+  name: string
+}
+
 export default function ReportPage() {
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
@@ -72,6 +85,8 @@ export default function ReportPage() {
     id: string
     name: string
     pricePerDay: number
+    agencyId?: string | null
+    agency?: { id: string; name: string } | null
     priceMonday?: number | null
     priceTuesday?: number | null
     priceWednesday?: number | null
@@ -80,6 +95,10 @@ export default function ReportPage() {
     priceSaturday?: number | null
     priceSunday?: number | null
   }[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [agencies, setAgencies] = useState<Agency[]>([])
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
+  const [selectedAgencyIds, setSelectedAgencyIds] = useState<string[]>([])
   const [addLocationDialogOpen, setAddLocationDialogOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<{ employeeId: string; employeeName: string } | null>(null)
   const [newLocationForm, setNewLocationForm] = useState({
@@ -90,10 +109,14 @@ export default function ReportPage() {
   useEffect(() => {
     Promise.all([
       fetch('/api/schedule').then(res => res.json()),
-      fetch('/api/locations').then(res => res.json())
-    ]).then(([schedulesData, locationsData]) => {
+      fetch('/api/locations').then(res => res.json()),
+      fetch('/api/employees').then(res => res.json()),
+      fetch('/api/agencies').then(res => res.json())
+    ]).then(([schedulesData, locationsData, employeesData, agenciesData]) => {
       setSchedules(Array.isArray(schedulesData) ? schedulesData : [])
       setLocations(Array.isArray(locationsData) ? locationsData : [])
+      setEmployees(Array.isArray(employeesData) ? employeesData : [])
+      setAgencies(Array.isArray(agenciesData) ? agenciesData : [])
     })
   }, [])
 
@@ -227,7 +250,32 @@ export default function ReportPage() {
         report.total = report.locations.reduce((sum, loc) => sum + loc.total, 0)
       })
 
-      const reportArray = Array.from(employeeMap.values())
+      let reportArray = Array.from(employeeMap.values())
+      
+      // Aplicar filtros de empleados
+      if (selectedEmployeeIds.length > 0) {
+        reportArray = reportArray.filter(emp => selectedEmployeeIds.includes(emp.employeeId))
+      }
+      
+      // Aplicar filtros de agencias
+      if (selectedAgencyIds.length > 0) {
+        reportArray = reportArray.map(emp => {
+          const filteredLocations = emp.locations.filter(loc => {
+            const location = locations.find(l => l.id === loc.locationId)
+            return location && location.agencyId && selectedAgencyIds.includes(location.agencyId)
+          })
+          
+          if (filteredLocations.length === 0) return null
+          
+          const newTotal = filteredLocations.reduce((sum, loc) => sum + loc.total, 0)
+          return {
+            ...emp,
+            locations: filteredLocations,
+            total: newTotal
+          }
+        }).filter((emp): emp is EmployeeReport => emp !== null)
+      }
+      
       setReportData(reportArray)
       
       if (reportArray.length === 0) {
@@ -644,6 +692,111 @@ export default function ReportPage() {
               />
             </div>
           </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="space-y-2">
+              <Label>Empleados</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {selectedEmployeeIds.length === 0
+                      ? 'Todos los empleados'
+                      : `${selectedEmployeeIds.length} empleado${selectedEmployeeIds.length > 1 ? 's' : ''} seleccionado${selectedEmployeeIds.length > 1 ? 's' : ''}`}
+                    <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0">
+                  <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="font-semibold">Seleccionar empleados</Label>
+                      {selectedEmployeeIds.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedEmployeeIds([])}
+                          className="h-6 px-2 text-xs"
+                        >
+                          Limpiar
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {employees.map((employee) => (
+                        <div key={employee.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`emp-report-${employee.id}`}
+                            checked={selectedEmployeeIds.includes(employee.id)}
+                            onCheckedChange={(checked: boolean) => {
+                              if (checked) {
+                                setSelectedEmployeeIds([...selectedEmployeeIds, employee.id])
+                              } else {
+                                setSelectedEmployeeIds(selectedEmployeeIds.filter(id => id !== employee.id))
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`emp-report-${employee.id}`} className="font-normal cursor-pointer flex-1">
+                            {employee.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Agencias</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {selectedAgencyIds.length === 0
+                      ? 'Todas las agencias'
+                      : `${selectedAgencyIds.length} agencia${selectedAgencyIds.length > 1 ? 's' : ''} seleccionada${selectedAgencyIds.length > 1 ? 's' : ''}`}
+                    <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0">
+                  <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="font-semibold">Seleccionar agencias</Label>
+                      {selectedAgencyIds.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedAgencyIds([])}
+                          className="h-6 px-2 text-xs"
+                        >
+                          Limpiar
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {agencies.map((agency) => (
+                        <div key={agency.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`agency-report-${agency.id}`}
+                            checked={selectedAgencyIds.includes(agency.id)}
+                            onCheckedChange={(checked: boolean) => {
+                              if (checked) {
+                                setSelectedAgencyIds([...selectedAgencyIds, agency.id])
+                              } else {
+                                setSelectedAgencyIds(selectedAgencyIds.filter(id => id !== agency.id))
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`agency-report-${agency.id}`} className="font-normal cursor-pointer flex-1">
+                            {agency.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+          
           <div className="mt-4 flex gap-2">
             <Button onClick={generateReport} disabled={loading}>
               {loading ? 'Generando...' : 'Generar Reporte'}
