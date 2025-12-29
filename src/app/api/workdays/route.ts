@@ -7,14 +7,46 @@ export const runtime = 'nodejs'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const employeeId = searchParams.get('employeeId')
+    const employeeIds = searchParams.get('employeeIds')
+    const agencyIds = searchParams.get('agencyIds')
     const locationId = searchParams.get('locationId')
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
     const where: any = {}
-    if (employeeId) where.employeeId = employeeId
-    if (locationId) where.locationId = locationId
+    
+    // Filtro por múltiples empleados
+    if (employeeIds) {
+      const ids = employeeIds.split(',').filter(id => id.trim())
+      if (ids.length > 0) {
+        where.employeeId = { in: ids }
+      }
+    }
+    
+    // Filtro por ubicación y/o agencias
+    if (locationId && agencyIds) {
+      // Si hay ambos filtros, usar AND para combinar
+      const ids = agencyIds.split(',').filter(id => id.trim())
+      if (ids.length > 0) {
+        where.location = {
+          AND: [
+            { id: locationId },
+            { agencyId: { in: ids } }
+          ]
+        }
+      } else {
+        where.locationId = locationId
+      }
+    } else if (locationId) {
+      where.locationId = locationId
+    } else if (agencyIds) {
+      const ids = agencyIds.split(',').filter(id => id.trim())
+      if (ids.length > 0) {
+        where.location = {
+          agencyId: { in: ids }
+        }
+      }
+    }
     if (startDate || endDate) {
       where.date = {}
       if (startDate && endDate) {

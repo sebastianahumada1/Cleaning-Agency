@@ -8,7 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Pencil, Trash2, Plus, CalendarX } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Pencil, Trash2, Plus, CalendarX, ChevronDown } from 'lucide-react'
 import { getWeekdayUTC, formatDateUTC, formatDateUTCSpanish } from '@/lib/date-utils'
 
 interface Workday {
@@ -43,16 +45,23 @@ interface Location {
   name: string
 }
 
+interface Agency {
+  id: string
+  name: string
+}
+
 export default function WorkdaysPage() {
   const [workdays, setWorkdays] = useState<Workday[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  const [agencies, setAgencies] = useState<Agency[]>([])
   const [loading, setLoading] = useState(true)
   const [startDate, setStartDate] = useState(
     new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   )
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('')
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
+  const [selectedAgencyIds, setSelectedAgencyIds] = useState<string[]>([])
   const [selectedLocationId, setSelectedLocationId] = useState<string>('')
   const [notesDialogOpen, setNotesDialogOpen] = useState(false)
   const [editingWorkday, setEditingWorkday] = useState<Workday | null>(null)
@@ -70,7 +79,7 @@ export default function WorkdaysPage() {
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const [bulkDeleteStartDate, setBulkDeleteStartDate] = useState('')
   const [bulkDeleteEndDate, setBulkDeleteEndDate] = useState('')
-  const [bulkDeleteEmployeeId, setBulkDeleteEmployeeId] = useState<string>('')
+  const [bulkDeleteEmployeeIds, setBulkDeleteEmployeeIds] = useState<string[]>([])
   const [bulkDeleteLocationId, setBulkDeleteLocationId] = useState<string>('')
   const [deletingBulk, setDeletingBulk] = useState(false)
   const [bulkDeleteCount, setBulkDeleteCount] = useState<number | null>(null)
@@ -82,22 +91,26 @@ export default function WorkdaysPage() {
 
   useEffect(() => {
     fetchWorkdays()
-  }, [startDate, endDate, selectedEmployeeId, selectedLocationId])
+  }, [startDate, endDate, selectedEmployeeIds, selectedAgencyIds, selectedLocationId])
 
   async function fetchEmployeesAndLocations() {
     try {
-      const [employeesRes, locationsRes] = await Promise.all([
+      const [employeesRes, locationsRes, agenciesRes] = await Promise.all([
         fetch('/api/employees'),
         fetch('/api/locations'),
+        fetch('/api/agencies'),
       ])
       const employeesData = await employeesRes.json()
       const locationsData = await locationsRes.json()
+      const agenciesData = await agenciesRes.json()
       setEmployees(Array.isArray(employeesData) ? employeesData : [])
       setLocations(Array.isArray(locationsData) ? locationsData : [])
+      setAgencies(Array.isArray(agenciesData) ? agenciesData : [])
     } catch (error) {
-      console.error('Payroll: Error fetching employees and locations:', error)
+      console.error('Payroll: Error fetching employees, locations and agencies:', error)
       setEmployees([])
       setLocations([])
+      setAgencies([])
     }
   }
 
@@ -106,7 +119,12 @@ export default function WorkdaysPage() {
       const params = new URLSearchParams()
       if (startDate) params.append('startDate', startDate)
       if (endDate) params.append('endDate', endDate)
-      if (selectedEmployeeId) params.append('employeeId', selectedEmployeeId)
+      if (selectedEmployeeIds.length > 0) {
+        params.append('employeeIds', selectedEmployeeIds.join(','))
+      }
+      if (selectedAgencyIds.length > 0) {
+        params.append('agencyIds', selectedAgencyIds.join(','))
+      }
       if (selectedLocationId) params.append('locationId', selectedLocationId)
 
       const url = `/api/workdays?${params.toString()}`
@@ -221,7 +239,9 @@ export default function WorkdaysPage() {
       const params = new URLSearchParams()
       params.append('startDate', bulkDeleteStartDate)
       params.append('endDate', bulkDeleteEndDate)
-      if (bulkDeleteEmployeeId) params.append('employeeId', bulkDeleteEmployeeId)
+      if (bulkDeleteEmployeeIds.length > 0) {
+        params.append('employeeIds', bulkDeleteEmployeeIds.join(','))
+      }
       if (bulkDeleteLocationId) params.append('locationId', bulkDeleteLocationId)
 
       // Primero contar los registros que coinciden
@@ -254,7 +274,7 @@ export default function WorkdaysPage() {
 
     const confirmMessage = `¿Estás seguro de que deseas eliminar ${bulkDeleteCount} día(s) de trabajo?\n\n` +
       `Rango: ${new Date(bulkDeleteStartDate).toLocaleDateString('es-ES')} - ${new Date(bulkDeleteEndDate).toLocaleDateString('es-ES')}\n` +
-      (bulkDeleteEmployeeId ? `Empleado: ${employees.find(e => e.id === bulkDeleteEmployeeId)?.name || 'Filtrado'}\n` : '') +
+      (bulkDeleteEmployeeIds.length > 0 ? `Empleado(s): ${bulkDeleteEmployeeIds.map(id => employees.find(e => e.id === id)?.name).filter(Boolean).join(', ') || 'Filtrado'}\n` : '') +
       (bulkDeleteLocationId ? `Ubicación: ${locations.find(l => l.id === bulkDeleteLocationId)?.name || 'Filtrado'}\n` : '') +
       `\nEsta acción no se puede deshacer.`
 
@@ -265,7 +285,9 @@ export default function WorkdaysPage() {
       const params = new URLSearchParams()
       params.append('startDate', bulkDeleteStartDate)
       params.append('endDate', bulkDeleteEndDate)
-      if (bulkDeleteEmployeeId) params.append('employeeId', bulkDeleteEmployeeId)
+      if (bulkDeleteEmployeeIds.length > 0) {
+        params.append('employeeIds', bulkDeleteEmployeeIds.join(','))
+      }
       if (bulkDeleteLocationId) params.append('locationId', bulkDeleteLocationId)
 
       const res = await fetch(`/api/workdays/bulk-delete?${params.toString()}`, {
@@ -279,7 +301,7 @@ export default function WorkdaysPage() {
         setBulkDeleteDialogOpen(false)
         setBulkDeleteStartDate('')
         setBulkDeleteEndDate('')
-        setBulkDeleteEmployeeId('')
+        setBulkDeleteEmployeeIds([])
         setBulkDeleteLocationId('')
         setBulkDeleteCount(null)
         fetchWorkdays()
@@ -297,7 +319,7 @@ export default function WorkdaysPage() {
   function openBulkDeleteDialog() {
     setBulkDeleteStartDate(startDate)
     setBulkDeleteEndDate(endDate)
-    setBulkDeleteEmployeeId(selectedEmployeeId)
+    setBulkDeleteEmployeeIds([...selectedEmployeeIds])
     setBulkDeleteLocationId(selectedLocationId)
     setBulkDeleteCount(null)
     setBulkDeleteDialogOpen(true)
@@ -406,7 +428,7 @@ export default function WorkdaysPage() {
           <CardDescription>Selecciona filtros para ver los días trabajados</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label htmlFor="startDate">Fecha Inicio</Label>
               <Input
@@ -426,23 +448,104 @@ export default function WorkdaysPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="employee">Empleado</Label>
-              <Select
-                value={selectedEmployeeId}
-                onValueChange={(value) => setSelectedEmployeeId(value === 'all' ? '' : value)}
-              >
-                <SelectTrigger id="employee">
-                  <SelectValue placeholder="Todos los empleados" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los empleados</SelectItem>
-                  {employees.map((employee) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Empleados</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {selectedEmployeeIds.length === 0
+                      ? 'Todos los empleados'
+                      : `${selectedEmployeeIds.length} empleado${selectedEmployeeIds.length > 1 ? 's' : ''} seleccionado${selectedEmployeeIds.length > 1 ? 's' : ''}`}
+                    <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0">
+                  <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="font-semibold">Seleccionar empleados</Label>
+                      {selectedEmployeeIds.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedEmployeeIds([])}
+                          className="h-6 px-2 text-xs"
+                        >
+                          Limpiar
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {employees.map((employee) => (
+                        <div key={employee.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`emp-${employee.id}`}
+                            checked={selectedEmployeeIds.includes(employee.id)}
+                            onCheckedChange={(checked: boolean) => {
+                              if (checked) {
+                                setSelectedEmployeeIds([...selectedEmployeeIds, employee.id])
+                              } else {
+                                setSelectedEmployeeIds(selectedEmployeeIds.filter(id => id !== employee.id))
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`emp-${employee.id}`} className="font-normal cursor-pointer flex-1">
+                            {employee.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label>Agencias</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {selectedAgencyIds.length === 0
+                      ? 'Todas las agencias'
+                      : `${selectedAgencyIds.length} agencia${selectedAgencyIds.length > 1 ? 's' : ''} seleccionada${selectedAgencyIds.length > 1 ? 's' : ''}`}
+                    <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0">
+                  <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="font-semibold">Seleccionar agencias</Label>
+                      {selectedAgencyIds.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedAgencyIds([])}
+                          className="h-6 px-2 text-xs"
+                        >
+                          Limpiar
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {agencies.map((agency) => (
+                        <div key={agency.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`agency-${agency.id}`}
+                            checked={selectedAgencyIds.includes(agency.id)}
+                            onCheckedChange={(checked: boolean) => {
+                              if (checked) {
+                                setSelectedAgencyIds([...selectedAgencyIds, agency.id])
+                              } else {
+                                setSelectedAgencyIds(selectedAgencyIds.filter(id => id !== agency.id))
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`agency-${agency.id}`} className="font-normal cursor-pointer flex-1">
+                            {agency.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label htmlFor="location">Ubicación</Label>
@@ -763,26 +866,58 @@ export default function WorkdaysPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="bulkDeleteEmployee">Empleado (opcional)</Label>
-                <Select
-                  value={bulkDeleteEmployeeId || "all"}
-                  onValueChange={(value) => {
-                    setBulkDeleteEmployeeId(value === "all" ? "" : value)
-                    setBulkDeleteCount(null)
-                  }}
-                >
-                  <SelectTrigger id="bulkDeleteEmployee">
-                    <SelectValue placeholder="Todos los empleados" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los empleados</SelectItem>
-                    {employees.map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Empleados (opcional)</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between">
+                      {bulkDeleteEmployeeIds.length === 0
+                        ? 'Todos los empleados'
+                        : `${bulkDeleteEmployeeIds.length} empleado${bulkDeleteEmployeeIds.length > 1 ? 's' : ''} seleccionado${bulkDeleteEmployeeIds.length > 1 ? 's' : ''}`}
+                      <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0">
+                    <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="font-semibold">Seleccionar empleados</Label>
+                        {bulkDeleteEmployeeIds.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setBulkDeleteEmployeeIds([])
+                              setBulkDeleteCount(null)
+                            }}
+                            className="h-6 px-2 text-xs"
+                          >
+                            Limpiar
+                          </Button>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        {employees.map((employee) => (
+                          <div key={employee.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`bulk-emp-${employee.id}`}
+                              checked={bulkDeleteEmployeeIds.includes(employee.id)}
+                              onCheckedChange={(checked: boolean) => {
+                                if (checked) {
+                                  setBulkDeleteEmployeeIds([...bulkDeleteEmployeeIds, employee.id])
+                                } else {
+                                  setBulkDeleteEmployeeIds(bulkDeleteEmployeeIds.filter(id => id !== employee.id))
+                                }
+                                setBulkDeleteCount(null)
+                              }}
+                            />
+                            <Label htmlFor={`bulk-emp-${employee.id}`} className="font-normal cursor-pointer flex-1">
+                              {employee.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bulkDeleteLocation">Ubicación (opcional)</Label>

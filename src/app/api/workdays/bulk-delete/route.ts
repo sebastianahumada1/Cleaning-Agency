@@ -9,7 +9,7 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
-    const employeeId = searchParams.get('employeeId')
+    const employeeIds = searchParams.get('employeeIds')
     const locationId = searchParams.get('locationId')
 
     if (!startDate || !endDate) {
@@ -28,8 +28,12 @@ export async function DELETE(request: NextRequest) {
       },
     }
 
-    if (employeeId) {
-      where.employeeId = employeeId
+    // Filtro por múltiples empleados
+    if (employeeIds) {
+      const ids = employeeIds.split(',').filter(id => id.trim())
+      if (ids.length > 0) {
+        where.employeeId = { in: ids }
+      }
     }
 
     if (locationId) {
