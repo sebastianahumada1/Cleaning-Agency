@@ -28,6 +28,7 @@ interface Payroll {
 
 interface PayPeriod {
   id: string
+  name?: string | null
   startDate: string
   endDate: string
 }
@@ -816,9 +817,13 @@ export default function PayrollPage() {
                           const day = String(date.getUTCDate()).padStart(2, '0')
                           return `${day}/${month}/${year}`
                         }
+                        const dateRange = `${formatPeriodDate(period.startDate)} - ${formatPeriodDate(period.endDate)}`
+                        const displayText = period.name 
+                          ? `${period.name} (${dateRange})`
+                          : dateRange
                         return (
                           <SelectItem key={period.id} value={period.id}>
-                            {formatPeriodDate(period.startDate)} - {formatPeriodDate(period.endDate)}
+                            {displayText}
                           </SelectItem>
                         )
                       })}

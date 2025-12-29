@@ -20,6 +20,7 @@ model Employee {
   workdays  Workday[]
   schedules Schedule[]
   payrolls  Payroll[]
+  payPeriods PayPeriodEmployee[]
 }
 
 model Agency {
@@ -28,6 +29,7 @@ model Agency {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   locations Location[]
+  payPeriods PayPeriodAgency[]
 }
 
 model Location {
@@ -94,13 +96,42 @@ model Workday {
 
 model PayPeriod {
   id        String    @id @default(uuid())
+  name      String?
   startDate DateTime
   endDate   DateTime
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   payrolls  Payroll[]
+  agencies  PayPeriodAgency[]
+  employees PayPeriodEmployee[]
 
   @@index([startDate, endDate])
+}
+
+model PayPeriodAgency {
+  id          String    @id @default(uuid())
+  payPeriodId String
+  agencyId    String
+  createdAt   DateTime  @default(now())
+  payPeriod   PayPeriod @relation(fields: [payPeriodId], references: [id], onDelete: Cascade)
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([payPeriodId, agencyId])
+  @@index([payPeriodId])
+  @@index([agencyId])
+}
+
+model PayPeriodEmployee {
+  id          String    @id @default(uuid())
+  payPeriodId String
+  employeeId  String
+  createdAt   DateTime  @default(now())
+  payPeriod   PayPeriod @relation(fields: [payPeriodId], references: [id], onDelete: Cascade)
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([payPeriodId, employeeId])
+  @@index([payPeriodId])
+  @@index([employeeId])
 }
 
 model Payroll {

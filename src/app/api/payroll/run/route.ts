@@ -16,9 +16,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fetch pay period
+    // Fetch pay period with related agencies and employees
     const payPeriod = await prisma.payPeriod.findUnique({
       where: { id: payPeriodId },
+      include: {
+        agencies: {
+          include: {
+            agency: true,
+          },
+        },
+        employees: {
+          include: {
+            employee: true,
+          },
+        },
+      },
     })
 
     if (!payPeriod) {
@@ -26,6 +38,18 @@ export async function POST(request: NextRequest) {
         { error: 'Pay period not found' },
         { status: 404 }
       )
+    }
+
+    // Extract agency IDs and employee IDs from the pay period
+    const periodAgencyIds = payPeriod.agencies.map(pa => pa.agencyId)
+    const periodEmployeeIds = payPeriod.employees.map(pe => pe.employeeId)
+    
+    console.log(`Payroll: Period has ${periodAgencyIds.length} agencies and ${periodEmployeeIds.length} employees`)
+    if (periodAgencyIds.length > 0) {
+      console.log(`Payroll: Agency IDs: ${periodAgencyIds.join(', ')}`)
+    }
+    if (periodEmployeeIds.length > 0) {
+      console.log(`Payroll: Employee IDs: ${periodEmployeeIds.join(', ')}`)
     }
 
     // Delete existing payrolls for this period
@@ -49,16 +73,31 @@ export async function POST(request: NextRequest) {
     console.log(`Payroll: Processing period from ${startDate.toISOString()} to ${endDate.toISOString()}`)
     console.log(`Payroll: Date range for query - gte: ${startDate.toISOString()}, lt: ${endDate.toISOString()}`)
 
-    // Get all workdays in the period
+    // Build where clause for workdays
+    const workdayWhere: any = {
+      date: {
+        gte: startDate,
+        lt: endDate,
+      },
+      attended: true,
+    }
+
+    // Filter by employees if specified in the period
+    if (periodEmployeeIds.length > 0) {
+      workdayWhere.employeeId = { in: periodEmployeeIds }
+    }
+
+    // Filter by agencies if specified in the period
+    if (periodAgencyIds.length > 0) {
+      workdayWhere.location = {
+        agencyId: { in: periodAgencyIds },
+      }
+    }
+
+    // Get all workdays in the period (filtered by agencies and employees if specified)
     // Use lt (less than) since endDate is now exclusive (start of next day)
     const workdays = await prisma.workday.findMany({
-      where: {
-        date: {
-          gte: startDate,
-          lt: endDate,
-        },
-        attended: true,
-      },
+      where: workdayWhere,
       include: {
         location: true,
         employee: true,
