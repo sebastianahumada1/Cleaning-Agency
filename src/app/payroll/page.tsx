@@ -55,6 +55,8 @@ export default function PayrollPage() {
   const [useCustomDates, setUseCustomDates] = useState(false)
   const [loading, setLoading] = useState(true)
   const [exportingImages, setExportingImages] = useState(false)
+  const [payrollsWithDays, setPayrollsWithDays] = useState<Record<string, string>>({})
+  const [loadingDays, setLoadingDays] = useState(false)
 
   useEffect(() => {
     fetchPayPeriods()
@@ -65,6 +67,15 @@ export default function PayrollPage() {
   useEffect(() => {
     fetchPayrolls()
   }, [selectedPeriod, selectedEmployeeIds, selectedAgencyIds, customStartDate, customEndDate, useCustomDates])
+
+  useEffect(() => {
+    const payrollsArray = Array.isArray(payrolls) ? payrolls : []
+    if (payrollsArray.length > 0) {
+      fetchPayrollsDays()
+    } else {
+      setPayrollsWithDays({})
+    }
+  }, [payrolls, selectedPeriod, useCustomDates, customStartDate, customEndDate, payPeriods])
 
   async function fetchPayPeriods() {
     try {
@@ -132,6 +143,150 @@ export default function PayrollPage() {
       setPayrolls([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Helper function to format date to YYYY-MM-DD
+  const formatDateForAPI = (dateStr: string): string => {
+    const date = new Date(dateStr)
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Helper function to get price for a day based on location and date
+  const getPriceForDay = (location: any, date: string): number => {
+    const weekday = getWeekdayUTC(date)
+    let price: number | null = null
+    
+    switch (weekday) {
+      case 1: // Monday
+        price = location.priceMonday ? Number(location.priceMonday) : null
+        break
+      case 2: // Tuesday
+        price = location.priceTuesday ? Number(location.priceTuesday) : null
+        break
+      case 3: // Wednesday
+        price = location.priceWednesday ? Number(location.priceWednesday) : null
+        break
+      case 4: // Thursday
+        price = location.priceThursday ? Number(location.priceThursday) : null
+        break
+      case 5: // Friday
+        price = location.priceFriday ? Number(location.priceFriday) : null
+        break
+      case 6: // Saturday
+        price = location.priceSaturday ? Number(location.priceSaturday) : null
+        break
+      case 7: // Sunday
+        price = location.priceSunday ? Number(location.priceSunday) : null
+        break
+    }
+    
+    // Fallback to pricePerDay if no specific weekday price
+    return price !== null ? price : (location.pricePerDay ? Number(location.pricePerDay) : 0)
+  }
+
+  async function fetchPayrollsDays() {
+    const payrollsArray = Array.isArray(payrolls) ? payrolls : []
+    if (payrollsArray.length === 0) return
+    
+    setLoadingDays(true)
+    try {
+      const selectedPeriodData = selectedPeriod ? payPeriods.find(p => p.id === selectedPeriod) : null
+      
+      // Get date range
+      const startDateStr = selectedPeriodData 
+        ? formatDateForAPI(selectedPeriodData.startDate)
+        : useCustomDates && customStartDate
+        ? customStartDate.split('/').reverse().join('-')
+        : null
+      const endDateStr = selectedPeriodData
+        ? formatDateForAPI(selectedPeriodData.endDate)
+        : useCustomDates && customEndDate
+        ? customEndDate.split('/').reverse().join('-')
+        : null
+
+      if (!startDateStr || !endDateStr) {
+        setLoadingDays(false)
+        return
+      }
+
+      // Fetch workdays for each payroll
+      const daysPromises = payrollsArray.map(async (payroll) => {
+        try {
+          const params = new URLSearchParams()
+          params.append('employeeIds', payroll.employeeId) // API accepts employeeIds as comma-separated, single ID works too
+          params.append('locationId', payroll.locationId)
+          params.append('startDate', startDateStr)
+          params.append('endDate', endDateStr)
+          
+          const workdaysRes = await fetch(`/api/workdays?${params.toString()}`)
+          const workdaysData = await workdaysRes.json()
+          const workdays = Array.isArray(workdaysData) ? workdaysData.filter((w: any) => w.attended) : []
+          
+          if (workdays.length === 0) {
+            return { payrollId: payroll.id, daysFormatted: `${payroll.daysWorked}` }
+          }
+          
+          // Get location from first workday (it includes price information)
+          let location = workdays[0]?.location || (payroll.location as any)
+          if (!location || (!location.pricePerDay && !location.priceMonday)) {
+            try {
+              const locationRes = await fetch(`/api/locations/${payroll.locationId}`)
+              const locationData = await locationRes.json()
+              location = locationData.location || location
+            } catch (error) {
+              console.error('Payroll: Error fetching location:', error)
+            }
+          }
+          
+          // Group workdays by unique date (YYYY-MM-DD) to avoid duplicates
+          const workdaysByDate = new Map<string, { day: number; price: number }>()
+          
+          workdays.forEach((workday: any) => {
+            const date = new Date(workday.date)
+            // Create a unique key using the full date (YYYY-MM-DD)
+            const dateKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+            
+            // Only add if we haven't seen this date before (avoid duplicates)
+            if (!workdaysByDate.has(dateKey)) {
+              const day = date.getUTCDate()
+              // Use location from workday if available (has prices), otherwise use fetched location
+              const workdayLocation = workday.location || location
+              const price = getPriceForDay(workdayLocation, workday.date)
+              workdaysByDate.set(dateKey, { day, price })
+            }
+          })
+          
+          // Convert map to array and sort by day
+          const dayPricePairs = Array.from(workdaysByDate.values())
+          dayPricePairs.sort((a, b) => a.day - b.day)
+          
+          // Format as "11 (48) - 14 (54)"
+          const daysFormatted = dayPricePairs.length > 0
+            ? dayPricePairs.map(dp => `${dp.day} (${dp.price})`).join(' - ')
+            : `${payroll.daysWorked}`
+          
+          return { payrollId: payroll.id, daysFormatted }
+        } catch (error) {
+          console.error('Payroll: Error fetching days for payroll:', payroll.id, error)
+          return { payrollId: payroll.id, daysFormatted: `${payroll.daysWorked}` }
+        }
+      })
+
+      const daysResults = await Promise.all(daysPromises)
+      const daysMap: Record<string, string> = {}
+      daysResults.forEach(result => {
+        daysMap[result.payrollId] = result.daysFormatted
+      })
+      
+      setPayrollsWithDays(daysMap)
+    } catch (error) {
+      console.error('Payroll: Error fetching payrolls days:', error)
+    } finally {
+      setLoadingDays(false)
     }
   }
 
@@ -320,19 +475,26 @@ export default function PayrollPage() {
             }
           }
           
-          // Group workdays by date and calculate price for each
-          const dayPricePairs: Array<{ day: number; price: number }> = []
+          // Group workdays by unique date (YYYY-MM-DD) to avoid duplicates
+          const workdaysByDate = new Map<string, { day: number; price: number }>()
           
           workdays.forEach((workday: any) => {
             const date = new Date(workday.date)
-            const day = date.getUTCDate()
-            // Use location from workday if available (has prices), otherwise use fetched location
-            const workdayLocation = workday.location || location
-            const price = getPriceForDay(workdayLocation, workday.date)
-            dayPricePairs.push({ day, price })
+            // Create a unique key using the full date (YYYY-MM-DD)
+            const dateKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+            
+            // Only add if we haven't seen this date before (avoid duplicates)
+            if (!workdaysByDate.has(dateKey)) {
+              const day = date.getUTCDate()
+              // Use location from workday if available (has prices), otherwise use fetched location
+              const workdayLocation = workday.location || location
+              const price = getPriceForDay(workdayLocation, workday.date)
+              workdaysByDate.set(dateKey, { day, price })
+            }
           })
           
-          // Sort by day
+          // Convert map to array and sort by day
+          const dayPricePairs = Array.from(workdaysByDate.values())
           dayPricePairs.sort((a, b) => a.day - b.day)
           
           // Format as "11 (48) - 14 (54)"
@@ -891,6 +1053,7 @@ export default function PayrollPage() {
                 <TableHead>Empleado</TableHead>
                 <TableHead>Ubicación</TableHead>
                 <TableHead>Días Trabajados</TableHead>
+                <TableHead>Días Específicos</TableHead>
                 <TableHead className="text-right">Total Ganado</TableHead>
               </TableRow>
             </TableHeader>
@@ -900,6 +1063,13 @@ export default function PayrollPage() {
                   <TableCell className="font-medium">{payroll.employee.name}</TableCell>
                   <TableCell>{payroll.location.name}</TableCell>
                   <TableCell>{payroll.daysWorked}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {loadingDays ? (
+                      <span className="text-muted-foreground">Cargando...</span>
+                    ) : (
+                      payrollsWithDays[payroll.id] || `${payroll.daysWorked}`
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">${Number(payroll.totalEarned).toFixed(2)}</TableCell>
                 </TableRow>
               ))}
